@@ -9,13 +9,17 @@ use ratatui::{
 	layout::{Constraint, Direction, Layout},
 	style::{Color, Modifier, Style},
 	text::{Line, Span, Text},
-	widgets::{Block, BorderType, Borders, Paragraph},
+	widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
 };
 use std::io;
+
+pub mod load_album_and_track_lists;
 
 const APP_VER: &str = env!("CARGO_PKG_VERSION");
 
 fn main() -> std::io::Result<()> {
+	let (track_list, album_list) = load_album_and_track_lists::run();
+
 	// Setup terminal
 	enable_raw_mode()?;
 	let mut stdout = io::stdout();
@@ -24,7 +28,7 @@ fn main() -> std::io::Result<()> {
 	let mut terminal = Terminal::new(backend)?;
 
 	// Initialize app state
-	let mut app = App::new();
+	let mut app = App::new(album_list, track_list);
 
 	// App loop
 	loop {
@@ -52,27 +56,16 @@ fn main() -> std::io::Result<()> {
 			let infobar_style = Style::default();
 			let player_style = Style::default();
 
-			let albums_style = if matches!(app.active_panel, ActivePanel::Albums) {
-				Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-			} else {
-				Style::default()
-			};
-			let tracks_style = if matches!(app.active_panel, ActivePanel::Tracks) {
-				Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-			} else {
-				Style::default()
-			};
-			let queue_style = if matches!(app.active_panel, ActivePanel::Queue) {
-				Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-			} else {
-				Style::default()
-			};
+			// Highlighting style
+			let highlight_style =
+				Style::default().fg(Color::Red).add_modifier(Modifier::BOLD);
 
-			let git_url = "https://github.com/simon-danielsson";
+			// ---------------- Info bar ----------------
+			let git_url = "https://github.com/simon-danielsson/stim";
 			let git_span = Span::styled(
 				format!("{}", git_url),
 				Style::default()
-					.fg(Color::Blue)
+					.fg(Color::Red)
 					.add_modifier(Modifier::UNDERLINED),
 			);
 
@@ -87,36 +80,65 @@ fn main() -> std::io::Result<()> {
 
 			f.render_widget(infobar, vertical_chunks[0]);
 
-			let albums =
-				Paragraph::new("Albums")
-					.style(albums_style)
-					.block(Block::default()
-						.title("󰀥 Albums")
-						.title_alignment(ratatui::layout::Alignment::Center)
-						.borders(Borders::ALL)
-						.border_type(BorderType::Rounded));
-			f.render_widget(albums, horizontal_chunks[0]);
+			// ---------------- Albums ----------------
+			let album_items: Vec<ListItem> = app
+				.albums
+				.iter()
+				.map(|album| {
+					ListItem::new(format!("{} - {}", album.artist, album.name))
+				})
+				.collect();
 
-			let tracks =
-				Paragraph::new("Tracks")
-					.style(tracks_style)
-					.block(Block::default()
-						.title(" Tracks")
-						.title_alignment(ratatui::layout::Alignment::Center)
-						.borders(Borders::ALL)
-						.border_type(BorderType::Rounded));
-			f.render_widget(tracks, horizontal_chunks[1]);
+			let albums = List::new(album_items)
+				.block(Block::default()
+					.title("󰀥 Albums")
+					.title_alignment(ratatui::layout::Alignment::Center)
+					.borders(Borders::ALL)
+					.border_type(BorderType::Rounded))
+				.highlight_style(highlight_style)
+				.highlight_symbol(">> ");
 
+			f.render_stateful_widget(
+				albums,
+				horizontal_chunks[0],
+				&mut app.album_state,
+			);
+
+			// ---------------- Tracks ----------------
+			let track_items: Vec<ListItem> = app
+				.visible_tracks()
+				.iter()
+				.map(|t| {
+					ListItem::new(format!("{} - {}", t.track_num, t.track_name))
+				})
+				.collect();
+
+			let tracks = List::new(track_items)
+				.block(Block::default()
+					.title(" Tracks")
+					.title_alignment(ratatui::layout::Alignment::Center)
+					.borders(Borders::ALL)
+					.border_type(BorderType::Rounded))
+				.highlight_style(highlight_style)
+				.highlight_symbol(">> ");
+
+			f.render_stateful_widget(
+				tracks,
+				horizontal_chunks[1],
+				&mut app.track_state,
+			);
+
+			// ---------------- Queue ----------------
 			let queue =
-				Paragraph::new("Queue")
-					.style(queue_style)
-					.block(Block::default()
-						.title("󰲹 Queue")
-						.title_alignment(ratatui::layout::Alignment::Center)
-						.borders(Borders::ALL)
-						.border_type(BorderType::Rounded));
+				Paragraph::new("Queue (not implemented)").block(Block::default()
+					.title("󰲹 Queue")
+					.title_alignment(ratatui::layout::Alignment::Center)
+					.borders(Borders::ALL)
+					.border_type(BorderType::Rounded));
+
 			f.render_widget(queue, horizontal_chunks[2]);
 
+			// ---------------- Player ----------------
 			let player = Paragraph::new("timeline, duration/total duration")
 				.style(player_style)
 				.block(Block::default()
@@ -126,31 +148,25 @@ fn main() -> std::io::Result<()> {
 					.border_type(BorderType::Rounded));
 			f.render_widget(player, vertical_chunks[2]);
 		})?;
+
+		// ---------------- Event handling ----------------
 		if event::poll(std::time::Duration::from_millis(200))? {
 			if let Event::Key(key) = event::read()? {
 				match key.code {
-					// General
-					KeyCode::Char('q') => break, // quit
-					// KeyCode::Char('s') => sort(),
-					// KeyCode::Char('f') => find(),
-					// KeyCode::Char('c') => clear_find(),
+					// Quit
+					KeyCode::Char('q') => break,
 
-					// Move left
-					KeyCode::Char('n') => app.move_left(),
-					KeyCode::Char('h') => app.move_left(),
-					KeyCode::Left => app.move_left(),
-					// Move down
-					// KeyCode::Char('e') => app.move_down(),
-					// KeyCode::Char('j') => app.move_down(),
-					// KeyCode::Down => app.move_down(),
-					// Move up
-					// KeyCode::Char('o') => app.move_up(),
-					// KeyCode::Char('k') => app.move_up(),
-					// KeyCode::Up => app.move_up(),
-					// Move right
-					KeyCode::Char('i') => app.move_right(),
-					KeyCode::Char('l') => app.move_right(),
-					KeyCode::Right => app.move_right(),
+					// Navigation between panels
+					KeyCode::Left | KeyCode::Char('n') => app.move_left(),
+					KeyCode::Right | KeyCode::Char('i') => app.move_right(),
+
+					// Navigation inside lists
+					KeyCode::Down | KeyCode::Char('e') => app.move_down(),
+					KeyCode::Up | KeyCode::Char('o') => app.move_up(),
+
+					// Select album to show tracks
+					KeyCode::Enter => app.select_album(),
+
 					_ => {}
 				}
 			}
@@ -168,6 +184,11 @@ fn main() -> std::io::Result<()> {
 
 struct App {
 	active_panel: ActivePanel,
+	albums: Vec<load_album_and_track_lists::Album>,
+	tracks: Vec<load_album_and_track_lists::Track>,
+	album_state: ListState,
+	track_state: ListState,
+	selected_album: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -178,11 +199,27 @@ enum ActivePanel {
 }
 
 impl App {
-	fn new() -> Self {
+	fn new(
+		albums: Vec<load_album_and_track_lists::Album>,
+		tracks: Vec<load_album_and_track_lists::Track>,
+	) -> Self {
+		let mut album_state = ListState::default();
+		album_state.select(Some(0));
+
+		let mut track_state = ListState::default();
+		track_state.select(Some(0));
+
 		Self {
 			active_panel: ActivePanel::Albums,
+			albums,
+			tracks,
+			album_state,
+			track_state,
+			selected_album: None,
 		}
 	}
+
+	// ---------------- Navigation ----------------
 	fn move_left(&mut self) {
 		self.active_panel = match self.active_panel {
 			ActivePanel::Albums => ActivePanel::Albums,
@@ -196,6 +233,68 @@ impl App {
 			ActivePanel::Albums => ActivePanel::Tracks,
 			ActivePanel::Tracks => ActivePanel::Queue,
 			ActivePanel::Queue => ActivePanel::Queue,
+		}
+	}
+
+	fn move_down(&mut self) {
+		match self.active_panel {
+			ActivePanel::Albums => {
+				let i = match self.album_state.selected() {
+					Some(i) if i < self.albums.len() - 1 => i + 1,
+					Some(i) => i,
+					None => 0,
+				};
+				self.album_state.select(Some(i));
+			}
+			ActivePanel::Tracks => {
+				let tracks = self.visible_tracks();
+				let i = match self.track_state.selected() {
+					Some(i) if i < tracks.len().saturating_sub(1) => i + 1,
+					Some(i) => i,
+					None => 0,
+				};
+				self.track_state.select(Some(i));
+			}
+			ActivePanel::Queue => {}
+		}
+	}
+
+	fn move_up(&mut self) {
+		match self.active_panel {
+			ActivePanel::Albums => {
+				let i = match self.album_state.selected() {
+					Some(i) if i > 0 => i - 1,
+					Some(i) => i,
+					None => 0,
+				};
+				self.album_state.select(Some(i));
+			}
+			ActivePanel::Tracks => {
+				let i = match self.track_state.selected() {
+					Some(i) if i > 0 => i - 1,
+					Some(i) => i,
+					None => 0,
+				};
+				self.track_state.select(Some(i));
+			}
+			ActivePanel::Queue => {}
+		}
+	}
+
+	// ---------------- Selection ----------------
+	fn select_album(&mut self) {
+		if let Some(i) = self.album_state.selected() {
+			self.selected_album = Some(i);
+			self.track_state.select(Some(0));
+		}
+	}
+
+	// ---------------- Visible tracks ----------------
+	fn visible_tracks(&self) -> Vec<load_album_and_track_lists::Track> {
+		if let Some(album_idx) = self.selected_album {
+			self.albums[album_idx].tracks.clone()
+		} else {
+			self.tracks.clone() // all tracks if no album selected
 		}
 	}
 }
