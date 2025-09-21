@@ -8,6 +8,8 @@ pub struct App {
 	pub active_panel: ActivePanel,
 	pub albums: Vec<load_album_and_track_lists::Album>,
 	pub tracks: Vec<load_album_and_track_lists::Track>,
+	pub all_albums: Vec<load_album_and_track_lists::Album>, // originals
+	pub all_tracks: Vec<load_album_and_track_lists::Track>, // originals
 	pub queue: Vec<load_album_and_track_lists::Track>,
 
 	pub album_state: ListState,
@@ -51,6 +53,8 @@ impl App {
 
 		Self {
 			active_panel: ActivePanel::Albums,
+			all_albums: albums.clone(),
+			all_tracks: tracks.clone(),
 			albums,
 			tracks,
 			queue: Vec::new(),
@@ -278,11 +282,56 @@ impl App {
 	pub fn submit_find(&mut self) {
 		self.find_term = self.input.clone();
 		self.input_mode = InputMode::Normal;
+		self.find_albums();
+		self.find_tracks();
 		self.reset_cursor();
 	}
+	pub fn find_albums(&mut self) {
+		if self.find_term.is_empty() {
+			self.albums = self.all_albums.clone();
+		} else {
+			let term = self.find_term.to_lowercase();
+			self.albums = self
+				.all_albums
+				.iter()
+				.filter(|album| {
+					album.name.to_lowercase().contains(&term)
+						|| album.artist.to_lowercase().contains(&term)
+				})
+				.cloned()
+				.collect();
+		}
+		self.album_state.select(Some(0));
+	}
 
+	pub fn find_tracks(&mut self) {
+		if self.find_term.is_empty() {
+			self.tracks = self.all_tracks.clone();
+		} else {
+			let term = self.find_term.to_lowercase();
+			self.tracks = self
+				.all_tracks
+				.iter()
+				.filter(|track| {
+					track.track_name.to_lowercase().contains(&term)
+						|| track.artist.to_lowercase().contains(&term)
+				})
+				.cloned()
+				.collect();
+		}
+		self.track_state.select(Some(0));
+	}
 	pub fn clear_find(&mut self) {
 		self.input.clear();
+		self.find_term.clear();
+
+		// restore full lists
+		self.albums = self.all_albums.clone();
+		self.tracks = self.all_tracks.clone();
+
+		// reset selections
+		self.album_state.select(Some(0));
+		self.track_state.select(Some(0));
 	}
 
 	// player

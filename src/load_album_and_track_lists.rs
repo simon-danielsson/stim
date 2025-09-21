@@ -45,7 +45,7 @@ fn create_album_list(tracks_vec: Vec<Track>) -> std::io::Result<Vec<Album>> {
 	Ok(album_list)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Album {
 	pub artist: String,

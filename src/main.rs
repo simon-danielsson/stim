@@ -239,6 +239,7 @@ fn main() -> std::io::Result<()> {
 				Paragraph::new(player_timeline_str).style(player_style);
 			f.render_widget(player_timeline, player_chunk[1]);
 
+			// draw cursor in find field
 			match app.input_mode {
 				InputMode::Normal => {}
 				#[allow(clippy::cast_possible_truncation)]
@@ -261,7 +262,12 @@ fn main() -> std::io::Result<()> {
 						c if K_UP.contains(&c) => app.move_up(),
 
 						K_QUIT => break,
-						K_FIND => app.input_mode = InputMode::Find,
+						K_FIND => {
+							if !app.input.is_empty() {
+								app.input = "".to_string();
+							}
+							app.input_mode = InputMode::Find;
+						}
 						K_CLEAR_FIND => app.clear_find(),
 						K_PLAY => app.player.toggle_play(),
 
