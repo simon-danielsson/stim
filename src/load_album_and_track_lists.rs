@@ -1,6 +1,8 @@
+use lofty::file::AudioFile;
 use lofty::file::TaggedFileExt;
 use lofty::prelude::ItemKey;
 use lofty::probe::Probe;
+use lofty::read_from_path;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -59,8 +61,7 @@ pub struct Track {
 	pub track_num: i32,
 	pub path: String,
 	pub album: String,
-	pub in_queue: bool,
-	pub currently_playing: bool,
+	pub length: u64,
 }
 
 impl Track {
@@ -70,6 +71,7 @@ impl Track {
 		track_num: i32,
 		path: String,
 		album: String,
+		length: u64,
 	) -> Self {
 		Self {
 			artist,
@@ -77,8 +79,7 @@ impl Track {
 			track_num,
 			path,
 			album,
-			in_queue: false,
-			currently_playing: false,
+			length,
 		}
 	}
 }
@@ -119,6 +120,13 @@ fn get_track_metadata(file_path: &str) -> std::io::Result<Track> {
 	let mut title = String::from("Unknown Title");
 	let mut album = String::from("Unknown Album");
 	let mut track_num: i32 = 0;
+	let mut length: u64 = 0;
+
+	// read_from_path returns Result<TaggedFile, Error>
+	if let Ok(tagged_file) = read_from_path(file_path) {
+		let duration_secs: u64 = tagged_file.properties().duration().as_secs();
+		length = duration_secs;
+	}
 
 	if let Some(tag) = tagged_file.unwrap().primary_tag() {
 		if let Some(t) = tag.get_string(&ItemKey::TrackTitle) {
@@ -144,5 +152,6 @@ fn get_track_metadata(file_path: &str) -> std::io::Result<Track> {
 		track_num,
 		file_path.to_string(),
 		album,
+		length,
 	))
 }

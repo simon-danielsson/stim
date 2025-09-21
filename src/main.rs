@@ -13,24 +13,26 @@ use ratatui::{
 };
 use std::io;
 
-pub mod load_album_and_track_lists;
+use crate::player::Player;
 
+pub mod load_album_and_track_lists;
+pub mod player;
 const APP_VER: &str = env!("CARGO_PKG_VERSION");
 
 fn main() -> std::io::Result<()> {
 	let (track_list, album_list) = load_album_and_track_lists::run();
 
-	// Setup terminal
+	// setup terminal
 	enable_raw_mode()?;
 	let mut stdout = io::stdout();
 	execute!(stdout, EnterAlternateScreen)?;
 	let backend = CrosstermBackend::new(stdout);
 	let mut terminal = Terminal::new(backend)?;
 
-	// Initialize app state
+	// init app state
 	let mut app = App::new(album_list, track_list);
 
-	// App loop
+	// app
 	loop {
 		terminal.draw(|f| {
 			let size = f.area();
@@ -56,11 +58,10 @@ fn main() -> std::io::Result<()> {
 			let infobar_style = Style::default();
 			let player_style = Style::default();
 
-			// Highlighting style
 			let highlight_style =
 				Style::default().fg(Color::Red).add_modifier(Modifier::BOLD);
 
-			// ---------------- Info bar ----------------
+			// info bar
 			let git_url = "https://github.com/simon-danielsson/stim";
 			let git_span = Span::styled(
 				format!("{}", git_url),
@@ -80,7 +81,7 @@ fn main() -> std::io::Result<()> {
 
 			f.render_widget(infobar, vertical_chunks[0]);
 
-			// ---------------- Albums ----------------
+			// albums
 			let album_items: Vec<ListItem> = app
 				.albums
 				.iter()
@@ -104,9 +105,9 @@ fn main() -> std::io::Result<()> {
 				&mut app.album_state,
 			);
 
-			// ---------------- Tracks ----------------
+			// tracks
 			let track_items: Vec<ListItem> = app
-				.visible_tracks()
+				.tracks
 				.iter()
 				.map(|t| {
 					ListItem::new(format!("{} - {}", t.track_num, t.track_name))
@@ -128,67 +129,122 @@ fn main() -> std::io::Result<()> {
 				&mut app.track_state,
 			);
 
-			// ---------------- Queue ----------------
-			let queue =
-				Paragraph::new("Queue (not implemented)").block(Block::default()
+			// queue
+			let queue_items: Vec<ListItem> =
+				app.queue
+					.iter()
+					.map(|t| {
+						ListItem::new(format!(
+							"{} - {}",
+							t.artist, t.track_name
+						))
+					})
+					.collect();
+
+			let queue = List::new(queue_items)
+				.block(Block::default()
 					.title("󰲹 Queue")
 					.title_alignment(ratatui::layout::Alignment::Center)
 					.borders(Borders::ALL)
-					.border_type(BorderType::Rounded));
+					.border_type(BorderType::Rounded))
+				.highlight_style(highlight_style)
+				.highlight_symbol(">> ");
 
-			f.render_widget(queue, horizontal_chunks[2]);
+			f.render_stateful_widget(queue, horizontal_chunks[2], &mut app.queue_state);
 
-			// ---------------- Player ----------------
-			let player = Paragraph::new("timeline, duration/total duration")
+			// player
+			let player_title = if let Some(track) = app.player.current_track() {
+				format!(
+					" {} - {} ({})",
+					track.artist, track.track_name, track.album
+				)
+			} else {
+				" No track".to_string()
+			};
+
+			let player = Paragraph::new(app.current_track_time())
 				.style(player_style)
 				.block(Block::default()
-					.title(" artist - song (album)")
+					.title(player_title)
 					.title_alignment(ratatui::layout::Alignment::Center)
 					.borders(Borders::ALL)
 					.border_type(BorderType::Rounded));
 			f.render_widget(player, vertical_chunks[2]);
 		})?;
 
-		// ---------------- Event handling ----------------
+		// event handling
+		let current_vol = app.player.get_volume();
 		if event::poll(std::time::Duration::from_millis(200))? {
 			if let Event::Key(key) = event::read()? {
 				match key.code {
-					// Quit
+					// quit
 					KeyCode::Char('q') => break,
 
-					// Navigation between panels
-					KeyCode::Left | KeyCode::Char('n') => app.move_left(),
-					KeyCode::Right | KeyCode::Char('i') => app.move_right(),
+					// player
+					KeyCode::Char(' ') => {
+						app.player.toggle_play();
+					}
+					KeyCode::Char('[') => {
+						app.player.set_volume(current_vol - 0.1)
+					}
+					KeyCode::Char(']') => {
+						app.player.set_volume(current_vol + 0.1)
+					}
+					// KeyCode::Char('{') => app.player.load_track(),
+					KeyCode::Char('}') => {
+						app.player.set_volume(current_vol + 0.1)
+					}
 
-					// Navigation inside lists
-					KeyCode::Down | KeyCode::Char('e') => app.move_down(),
-					KeyCode::Up | KeyCode::Char('o') => app.move_up(),
+					// panel nav
+					KeyCode::Left | KeyCode::Char('n') | KeyCode::Char('h') => {
+						app.move_left()
+					}
+					KeyCode::Right
+					| KeyCode::Char('i')
+					| KeyCode::Char('l') => app.move_right(),
 
-					// Select album to show tracks
-					KeyCode::Enter => app.select_album(),
+					// list nav
+					KeyCode::Down | KeyCode::Char('e') | KeyCode::Char('j') => {
+						app.move_down()
+					}
+					KeyCode::Up | KeyCode::Char('o') | KeyCode::Char('k') => {
+						app.move_up()
+					}
+
+					// clear queue
+					KeyCode::Esc => app.clear_queue(),
+
+					KeyCode::Char('a') => {
+						app.main_action();
+					}
+					KeyCode::Char('A') => {
+						app.aux_main_action();
+					}
 
 					_ => {}
 				}
 			}
+			app.load_next_track_automatically();
 		}
 	}
-
 	disable_raw_mode()?;
 	execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 	Ok(())
 }
 
-// ----------------------------
-// Application state
-// ----------------------------
+// application state
 
-struct App {
+pub struct App {
 	active_panel: ActivePanel,
 	albums: Vec<load_album_and_track_lists::Album>,
 	tracks: Vec<load_album_and_track_lists::Track>,
+	queue: Vec<load_album_and_track_lists::Track>,
+
 	album_state: ListState,
 	track_state: ListState,
-	selected_album: Option<usize>,
+	queue_state: ListState,
+
+	player: player::Player,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -209,17 +265,22 @@ impl App {
 		let mut track_state = ListState::default();
 		track_state.select(Some(0));
 
+		let mut queue_state = ListState::default();
+		queue_state.select(Some(0));
+
 		Self {
 			active_panel: ActivePanel::Albums,
 			albums,
 			tracks,
+			queue: Vec::new(),
 			album_state,
 			track_state,
-			selected_album: None,
+			queue_state,
+			player: Player::new(),
 		}
 	}
 
-	// ---------------- Navigation ----------------
+	// navigation
 	fn move_left(&mut self) {
 		self.active_panel = match self.active_panel {
 			ActivePanel::Albums => ActivePanel::Albums,
@@ -247,15 +308,21 @@ impl App {
 				self.album_state.select(Some(i));
 			}
 			ActivePanel::Tracks => {
-				let tracks = self.visible_tracks();
 				let i = match self.track_state.selected() {
-					Some(i) if i < tracks.len().saturating_sub(1) => i + 1,
+					Some(i) if i < self.tracks.len() - 1 => i + 1,
 					Some(i) => i,
 					None => 0,
 				};
 				self.track_state.select(Some(i));
 			}
-			ActivePanel::Queue => {}
+			ActivePanel::Queue => {
+				let i = match self.queue_state.selected() {
+					Some(i) if i < self.queue.len().saturating_sub(1) => i + 1,
+					Some(i) => i,
+					None => 0,
+				};
+				self.queue_state.select(Some(i));
+			}
 		}
 	}
 
@@ -277,24 +344,120 @@ impl App {
 				};
 				self.track_state.select(Some(i));
 			}
-			ActivePanel::Queue => {}
+			ActivePanel::Queue => {
+				let i = match self.queue_state.selected() {
+					Some(i) if i > 0 => i - 1,
+					Some(i) => i,
+					None => 0,
+				};
+				self.queue_state.select(Some(i));
+			}
 		}
 	}
 
-	// ---------------- Selection ----------------
-	fn select_album(&mut self) {
-		if let Some(i) = self.album_state.selected() {
-			self.selected_album = Some(i);
-			self.track_state.select(Some(0));
+	// queue logic
+	fn main_action(&mut self) {
+		match self.active_panel {
+			ActivePanel::Albums => {
+				if let Some(i) = self.album_state.selected() {
+					let mut tracks = self.albums[i].tracks.clone();
+					self.queue.extend(tracks.drain(..));
+					self.queue_state
+						.select(Some(self.queue.len().saturating_sub(1)));
+				}
+				if let Some(first_track) = self.queue.first() {
+					self.player.load_track(first_track.clone());
+				}
+				if self.player.current_track().is_none() {
+					if let Some(first_track) = self.queue.first() {
+						self.player.load_track(first_track.clone());
+					}
+				}
+			}
+			ActivePanel::Tracks => {
+				if let Some(i) = self.track_state.selected() {
+					self.queue.push(self.tracks[i].clone());
+					self.queue_state
+						.select(Some(self.queue.len().saturating_sub(1)));
+				}
+				if let Some(first_track) = self.queue.first() {
+					self.player.load_track(first_track.clone());
+				}
+				if self.player.current_track().is_none() {
+					if let Some(first_track) = self.queue.first() {
+						self.player.load_track(first_track.clone());
+					}
+				}
+			}
+			ActivePanel::Queue => {
+				if let Some(i) = self.queue_state.selected() {
+					self.queue.remove(i);
+					if self.queue.is_empty() {
+						self.queue_state.select(None);
+					} else if i >= self.queue.len() {
+						self.queue_state.select(Some(self.queue.len() - 1));
+					}
+				}
+			}
 		}
 	}
 
-	// ---------------- Visible tracks ----------------
-	fn visible_tracks(&self) -> Vec<load_album_and_track_lists::Track> {
-		if let Some(album_idx) = self.selected_album {
-			self.albums[album_idx].tracks.clone()
+	fn aux_main_action(&mut self) {
+		match self.active_panel {
+			ActivePanel::Albums => {
+				if let Some(i) = self.album_state.selected() {
+					let mut tracks = self.albums[i].tracks.clone();
+					while let Some(t) = tracks.pop() {
+						self.queue.insert(0, t);
+					}
+					self.queue_state.select(Some(0));
+				}
+			}
+			ActivePanel::Tracks => {
+				if let Some(i) = self.track_state.selected() {
+					let t = self.tracks[i].clone();
+					self.queue.insert(0, t);
+					self.queue_state.select(Some(0));
+				}
+			}
+			ActivePanel::Queue => {
+				if let Some(i) = self.queue_state.selected() {
+					if i < self.queue.len() {
+						let t = self.queue.remove(i);
+						self.queue.insert(0, t);
+						self.queue_state.select(Some(0));
+					}
+				}
+			}
+		}
+	}
+
+	fn clear_queue(&mut self) {
+		self.queue.clear();
+		self.queue_state.select(None);
+	}
+	fn load_next_track_automatically(&mut self) {
+		if self.player.sink.empty() {
+			if !self.queue.is_empty() {
+				let next_track = self.queue.remove(0);
+				self.player.load_track(next_track);
+				self.queue_state.select(Some(0));
+			}
+		}
+	}
+	pub fn current_track_time(&self) -> String {
+		if let Some(track) = &self.player.current_track {
+			let elapsed = self.player.position().as_secs();
+			let total = &track.length;
+			format!(
+				"{:02}:{:02} / {:02}:{:02}",
+				elapsed / 60,
+				elapsed % 60,
+				total / 60,
+				total % 60
+			)
 		} else {
-			self.tracks.clone() // all tracks if no album selected
+			"00:00 / 00:00".to_string()
 		}
 	}
 }

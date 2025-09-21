@@ -63,15 +63,15 @@ stim
   
 ```
 If inside the "Albums" or "Tracks" pane:
-[Enter]   = Add selected album/track to the back of the queue.
-[S-Enter] = Add selected album/track to the front of the queue.
+[a] = Add selected album/track to the back of the queue.
+[A] = Add selected album/track to the front of the queue.
 
 If inside the "Queue" pane: 
-[Enter]   = Remove selected track from the queue.
-[S-Enter] = Move selected track to the front of the queue.
+[a] = Remove selected track from the queue.
+[A] = Move selected track to the front of the queue.
 
-[Esc]     = Clear the queue (note that the queue doubles as 
-            the playback history, so clearing it will also clear your history).
+[Esc] = Clear the queue (note that the queue doubles as 
+        the playback history, so clearing it will also clear your history).
 ```
 
 **General**  
