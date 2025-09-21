@@ -1,12 +1,12 @@
 use crossterm::{
-	event::{self, Event},
+	event::{self, Event, KeyCode, KeyEventKind},
 	execute,
 	terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
 	Terminal,
 	backend::CrosstermBackend,
-	layout::{Alignment, Constraint, Direction, Layout},
+	layout::{Alignment, Constraint, Direction, Layout, Position},
 	style::{Color, Modifier, Style},
 	widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
 };
@@ -22,7 +22,6 @@ use crate::constants::*;
 fn main() -> std::io::Result<()> {
 	let (track_list, album_list) = load_album_and_track_lists::run();
 
-	// setup terminal
 	enable_raw_mode()?;
 	let mut stdout = std::io::stdout();
 	execute!(stdout, EnterAlternateScreen)?;
@@ -36,25 +35,23 @@ fn main() -> std::io::Result<()> {
 	loop {
 		terminal.draw(|f| {
 			let size = f.area();
-			let vertical_chunks = Layout::default()
-				.direction(Direction::Vertical)
-				.constraints([
-					Constraint::Fill(1),   // main
-					Constraint::Length(2), // player
-				])
-				.split(size);
-			let horizontal_chunks = Layout::default()
-				.direction(Direction::Horizontal)
-				.constraints([
-					Constraint::Percentage(40), // albums
-					Constraint::Percentage(40), // tracks
-					Constraint::Fill(1),        // queue
-				])
-				.split(vertical_chunks[0]);
-			let queue_logo_chunk = Layout::default()
-				.direction(Direction::Vertical)
-				.constraints([Constraint::Fill(1), Constraint::Max(8)])
-				.split(horizontal_chunks[2]);
+			let vertical_chunks = Layout::vertical([
+				Constraint::Fill(1),   // main
+				Constraint::Length(2), // player
+			])
+			.split(size);
+			let horizontal_chunks = Layout::horizontal([
+				Constraint::Percentage(40), // albums
+				Constraint::Percentage(40), // tracks
+				Constraint::Fill(1),        // queue
+			])
+			.split(vertical_chunks[0]);
+			let queue_logo_chunk = Layout::vertical([
+				Constraint::Max(3),
+				Constraint::Fill(1),
+				Constraint::Max(8),
+			])
+			.split(horizontal_chunks[2]);
 
 			let player_chunk = Layout::default()
 				.direction(Direction::Vertical)
@@ -139,6 +136,19 @@ fn main() -> std::io::Result<()> {
 				&mut app.track_state,
 			);
 
+			// find
+			let find = Paragraph::new(app.input.as_str())
+				.style(match app.input_mode {
+					InputMode::Normal => Style::default(),
+					InputMode::Find => Style::default().fg(HIL_CLR),
+				})
+				.block(Block::default()
+					.title(" Find")
+					.title_alignment(ratatui::layout::Alignment::Center)
+					.borders(Borders::ALL)
+					.border_type(BorderType::Rounded));
+			f.render_widget(find, queue_logo_chunk[0]);
+
 			// queue
 			let queue_has_focus = matches!(app.active_panel, ActivePanel::Queue);
 			let queue_items: Vec<ListItem> = app
@@ -173,7 +183,7 @@ fn main() -> std::io::Result<()> {
 					Style::default()
 				})
 				.highlight_symbol(if queue_has_focus { "  " } else { "   " });
-			f.render_stateful_widget(queue, queue_logo_chunk[0], &mut app.queue_state);
+			f.render_stateful_widget(queue, queue_logo_chunk[1], &mut app.queue_state);
 
 			// logo
 			let logo_text = format!(
@@ -198,7 +208,7 @@ fn main() -> std::io::Result<()> {
 			let logo = Paragraph::new(centered_lines)
 				.style(Style::default().fg(HIL_CLR))
 				.alignment(Alignment::Left);
-			f.render_widget(logo, queue_logo_chunk[1]);
+			f.render_widget(logo, queue_logo_chunk[2]);
 
 			// player
 			let player_style = Style::default();
@@ -228,25 +238,62 @@ fn main() -> std::io::Result<()> {
 			let player_timeline =
 				Paragraph::new(player_timeline_str).style(player_style);
 			f.render_widget(player_timeline, player_chunk[1]);
+
+			match app.input_mode {
+				InputMode::Normal => {}
+				#[allow(clippy::cast_possible_truncation)]
+				InputMode::Find => f.set_cursor_position(Position::new(
+					queue_logo_chunk[0].x + app.find_char_index as u16 + 1,
+					queue_logo_chunk[0].y + 1,
+				)),
+			}
 		})?;
 
 		// event handling
 		let current_vol = app.player.get_volume();
-		if event::poll(std::time::Duration::from_millis(200))? {
+		if event::poll(std::time::Duration::from_millis(100))? {
 			if let Event::Key(key) = event::read()? {
-				match key.code {
-					c if K_LEFT.contains(&c) => app.move_left(),
-					c if K_RIGHT.contains(&c) => app.move_right(),
-					c if K_DOWN.contains(&c) => app.move_down(),
-					c if K_UP.contains(&c) => app.move_up(),
-					K_QUIT => break,
-					K_PLAY => app.player.toggle_play(),
-					K_VOL_DOWN => app.player.set_volume(current_vol - 0.1),
-					K_VOL_UP => app.player.set_volume(current_vol + 0.1),
-					K_CLEAR => app.clear_queue(),
-					K_MAIN => app.main_action(),
-					K_AUX => app.aux_main_action(),
-					_ => {}
+				match app.input_mode {
+					InputMode::Normal => match key.code {
+						c if K_LEFT.contains(&c) => app.move_left(),
+						c if K_RIGHT.contains(&c) => app.move_right(),
+						c if K_DOWN.contains(&c) => app.move_down(),
+						c if K_UP.contains(&c) => app.move_up(),
+
+						K_QUIT => break,
+						K_FIND => app.input_mode = InputMode::Find,
+						K_CLEAR_FIND => app.clear_find(),
+						K_PLAY => app.player.toggle_play(),
+
+						K_VOL_DOWN => {
+							app.player.set_volume(current_vol - 0.1)
+						}
+						K_VOL_UP => {
+							app.player.set_volume(current_vol + 0.1)
+						}
+
+						K_CLEAR => app.clear_queue(),
+						K_MAIN => app.main_action(),
+						K_AUX => app.aux_main_action(),
+						_ => {}
+					},
+
+					InputMode::Find if key.kind == KeyEventKind::Press => {
+						match key.code {
+							KeyCode::Enter => app.submit_find(),
+							KeyCode::Char(to_insert) => {
+								app.enter_char(to_insert)
+							}
+							KeyCode::Backspace => app.delete_char(),
+							KeyCode::Left => app.move_cursor_left(),
+							KeyCode::Right => app.move_cursor_right(),
+							KeyCode::Esc => {
+								app.input_mode = InputMode::Normal
+							}
+							_ => {}
+						}
+					}
+					InputMode::Find => {}
 				}
 			}
 

@@ -10,6 +10,8 @@ pub const WEBSITE: &str = "www.simondanielsson.se";
 // === keymaps ===
 
 pub const K_QUIT: KeyCode = KeyCode::Char('q'); // quit
+pub const K_FIND: KeyCode = KeyCode::Char('f'); // find
+pub const K_CLEAR_FIND: KeyCode = KeyCode::Char('F'); // find
 
 pub const K_PLAY: KeyCode = KeyCode::Char(' '); // play/pause
 
