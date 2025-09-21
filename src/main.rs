@@ -6,12 +6,10 @@ use crossterm::{
 use ratatui::{
 	Terminal,
 	backend::CrosstermBackend,
-	layout::{Alignment, Constraint, Direction, Layout},
+	layout::{Alignment, Constraint, Direction, Layout, Rect},
 	style::{Color, Modifier, Style},
 	widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
 };
-use rodio::queue;
-use std::io;
 
 use crate::player::Player;
 
@@ -24,7 +22,7 @@ fn main() -> std::io::Result<()> {
 
 	// setup terminal
 	enable_raw_mode()?;
-	let mut stdout = io::stdout();
+	let mut stdout = std::io::stdout();
 	execute!(stdout, EnterAlternateScreen)?;
 	let backend = CrosstermBackend::new(stdout);
 	let mut terminal = Terminal::new(backend)?;
@@ -40,7 +38,7 @@ fn main() -> std::io::Result<()> {
 				.direction(Direction::Vertical)
 				.constraints([
 					Constraint::Fill(1),   // main
-					Constraint::Length(3), // player
+					Constraint::Length(2), // player
 				])
 				.split(size);
 			let horizontal_chunks = Layout::default()
@@ -55,6 +53,12 @@ fn main() -> std::io::Result<()> {
 				.direction(Direction::Vertical)
 				.constraints([Constraint::Fill(1), Constraint::Max(8)])
 				.split(horizontal_chunks[2]);
+
+			let player_chunk = Layout::default()
+				.direction(Direction::Vertical)
+				.constraints([Constraint::Max(1), Constraint::Max(1)])
+				.split(vertical_chunks[1]);
+
 			let highlight_style = Style::default()
 				.fg(Color::Black)
 				.add_modifier(Modifier::BOLD)
@@ -199,22 +203,32 @@ fn main() -> std::io::Result<()> {
 
 			// player
 			let player_style = Style::default();
-			let player_title = if let Some(track) = app.player.current_track() {
+			let currently_playing = if let Some(track) = app.player.current_track() {
 				format!(
-					" {} - {} ({})",
-					track.artist, track.track_name, track.album
+					"  {}. {} - {} [{}]",
+					track.track_num,
+					track.artist,
+					track.track_name,
+					track.album
 				)
 			} else {
 				" No track".to_string()
 			};
-			let player = Paragraph::new(app.current_track_time())
-				.style(player_style)
-				.block(Block::default()
-					.title(player_title)
-					.title_alignment(ratatui::layout::Alignment::Center)
-					.borders(Borders::ALL)
-					.border_type(BorderType::Rounded));
-			f.render_widget(player, vertical_chunks[1]);
+			let player = Paragraph::new(format!(
+				"{} {}",
+				app.current_track_time(),
+				currently_playing
+			))
+			.style(player_style)
+			.block(Block::default()
+				.title_alignment(ratatui::layout::Alignment::Left)
+				.borders(Borders::empty())
+				.border_type(BorderType::Rounded));
+			f.render_widget(player, player_chunk[0]);
+			let player_timeline_str = app.update_player_timeline(player_chunk[1]);
+			let player_timeline =
+				Paragraph::new(player_timeline_str).style(player_style);
+			f.render_widget(player_timeline, player_chunk[1]);
 		})?;
 
 		// event handling
@@ -400,7 +414,6 @@ impl App {
 		}
 	}
 
-	// queue logic
 	fn main_action(&mut self) {
 		match self.active_panel {
 			ActivePanel::Albums => {
@@ -481,6 +494,7 @@ impl App {
 		self.queue.clear();
 		self.queue_state.select(None);
 	}
+
 	fn load_next_track_automatically(&mut self) {
 		if self.player.sink.empty() {
 			if !self.queue.is_empty() {
@@ -490,6 +504,27 @@ impl App {
 			}
 		}
 	}
+
+	pub fn update_player_timeline(&self, player_chunk: Rect) -> String {
+		if let Some(track) = &self.player.current_track {
+			let elapsed = self.player.position().as_secs() as usize;
+			let total = track.length as usize;
+			let width = player_chunk.width as usize;
+			let progress = if total > 0 {
+				(elapsed * width) / total
+			} else {
+				0
+			};
+			let bar = format!(
+				"{}{}",
+				"█".repeat(progress),
+				"░".repeat(width.saturating_sub(progress))
+			);
+			return bar;
+		}
+		String::new()
+	}
+
 	pub fn current_track_time(&self) -> String {
 		if let Some(track) = &self.player.current_track {
 			let elapsed = self.player.position().as_secs();
