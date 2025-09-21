@@ -1,21 +1,23 @@
 use crossterm::{
-	event::{self, Event, KeyCode},
+	event::{self, Event},
 	execute,
 	terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
 	Terminal,
 	backend::CrosstermBackend,
-	layout::{Alignment, Constraint, Direction, Layout, Rect},
+	layout::{Alignment, Constraint, Direction, Layout},
 	style::{Color, Modifier, Style},
-	widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
+	widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
 };
 
-use crate::player::Player;
-
+pub mod app;
+pub mod constants;
 pub mod load_album_and_track_lists;
 pub mod player;
-const APP_VER: &str = env!("CARGO_PKG_VERSION");
+
+use crate::app::*;
+use crate::constants::*;
 
 fn main() -> std::io::Result<()> {
 	let (track_list, album_list) = load_album_and_track_lists::run();
@@ -62,7 +64,7 @@ fn main() -> std::io::Result<()> {
 			let highlight_style = Style::default()
 				.fg(Color::Black)
 				.add_modifier(Modifier::BOLD)
-				.bg(Color::Red);
+				.bg(HIL_CLR);
 
 			// albums
 			let album_has_focus = matches!(app.active_panel, ActivePanel::Albums);
@@ -82,9 +84,8 @@ fn main() -> std::io::Result<()> {
 						.borders(Borders::ALL)
 						.border_type(BorderType::Rounded);
 					if album_has_focus {
-						block = block.border_style(
-							Style::default().fg(Color::Red),
-						);
+						block = block
+							.border_style(Style::default().fg(HIL_CLR));
 					}
 					block
 				})
@@ -121,9 +122,8 @@ fn main() -> std::io::Result<()> {
 						.borders(Borders::ALL)
 						.border_type(BorderType::Rounded);
 					if tracks_has_focus {
-						block = block.border_style(
-							Style::default().fg(Color::Red),
-						);
+						block = block
+							.border_style(Style::default().fg(HIL_CLR));
 					}
 					block
 				})
@@ -162,9 +162,8 @@ fn main() -> std::io::Result<()> {
 						.borders(Borders::ALL)
 						.border_type(BorderType::Rounded);
 					if queue_has_focus {
-						block = block.border_style(
-							Style::default().fg(Color::Red),
-						);
+						block = block
+							.border_style(Style::default().fg(HIL_CLR));
 					}
 					block
 				})
@@ -179,7 +178,7 @@ fn main() -> std::io::Result<()> {
 			// logo
 			let logo_text = format!(
 				"\n░█▀▀░▀█▀░▀█▀░█▄█\n░▀▀█░░█░░░█░░█░█\n░▀▀▀░░▀░░▀▀▀░▀░▀\nv{}\n{}\n{}\n",
-				APP_VER, "www.simondanielsson.se", "© 2025 stim — MIT License"
+				APP_VER, WEBSITE, COPYRIGHT
 			);
 			let centered_lines: String = logo_text
 				.lines()
@@ -197,7 +196,7 @@ fn main() -> std::io::Result<()> {
 				})
 				.collect();
 			let logo = Paragraph::new(centered_lines)
-				.style(Style::default().fg(Color::Red))
+				.style(Style::default().fg(HIL_CLR))
 				.alignment(Alignment::Left);
 			f.render_widget(logo, queue_logo_chunk[1]);
 
@@ -236,308 +235,25 @@ fn main() -> std::io::Result<()> {
 		if event::poll(std::time::Duration::from_millis(200))? {
 			if let Event::Key(key) = event::read()? {
 				match key.code {
-					// quit
-					KeyCode::Char('q') => break,
-
-					// player
-					KeyCode::Char(' ') => {
-						app.player.toggle_play();
-					}
-					KeyCode::Char('[') => {
-						app.player.set_volume(current_vol - 0.1)
-					}
-					KeyCode::Char(']') => {
-						app.player.set_volume(current_vol + 0.1)
-					}
-					// KeyCode::Char('{') => app.player.load_track(),
-					KeyCode::Char('}') => {
-						app.player.set_volume(current_vol + 0.1)
-					}
-
-					// panel nav
-					KeyCode::Left | KeyCode::Char('n') | KeyCode::Char('h') => {
-						app.move_left()
-					}
-					KeyCode::Right
-					| KeyCode::Char('i')
-					| KeyCode::Char('l') => app.move_right(),
-
-					// list nav
-					KeyCode::Down | KeyCode::Char('e') | KeyCode::Char('j') => {
-						app.move_down()
-					}
-					KeyCode::Up | KeyCode::Char('o') | KeyCode::Char('k') => {
-						app.move_up()
-					}
-
-					// clear queue
-					KeyCode::Esc => app.clear_queue(),
-
-					KeyCode::Char('a') => {
-						app.main_action();
-					}
-					KeyCode::Char('A') => {
-						app.aux_main_action();
-					}
-
+					c if K_LEFT.contains(&c) => app.move_left(),
+					c if K_RIGHT.contains(&c) => app.move_right(),
+					c if K_DOWN.contains(&c) => app.move_down(),
+					c if K_UP.contains(&c) => app.move_up(),
+					K_QUIT => break,
+					K_PLAY => app.player.toggle_play(),
+					K_VOL_DOWN => app.player.set_volume(current_vol - 0.1),
+					K_VOL_UP => app.player.set_volume(current_vol + 0.1),
+					K_CLEAR => app.clear_queue(),
+					K_MAIN => app.main_action(),
+					K_AUX => app.aux_main_action(),
 					_ => {}
 				}
 			}
+
 			app.load_next_track_automatically();
 		}
 	}
 	disable_raw_mode()?;
 	execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 	Ok(())
-}
-
-// application state
-
-pub struct App {
-	active_panel: ActivePanel,
-	albums: Vec<load_album_and_track_lists::Album>,
-	tracks: Vec<load_album_and_track_lists::Track>,
-	queue: Vec<load_album_and_track_lists::Track>,
-
-	album_state: ListState,
-	track_state: ListState,
-	queue_state: ListState,
-
-	player: player::Player,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum ActivePanel {
-	Albums,
-	Tracks,
-	Queue,
-}
-
-impl App {
-	fn new(
-		albums: Vec<load_album_and_track_lists::Album>,
-		tracks: Vec<load_album_and_track_lists::Track>,
-	) -> Self {
-		let mut album_state = ListState::default();
-		album_state.select(Some(0));
-
-		let mut track_state = ListState::default();
-		track_state.select(Some(0));
-
-		let mut queue_state = ListState::default();
-		queue_state.select(Some(0));
-
-		Self {
-			active_panel: ActivePanel::Albums,
-			albums,
-			tracks,
-			queue: Vec::new(),
-			album_state,
-			track_state,
-			queue_state,
-			player: Player::new(),
-		}
-	}
-
-	// navigation
-	fn move_left(&mut self) {
-		self.active_panel = match self.active_panel {
-			ActivePanel::Albums => ActivePanel::Albums,
-			ActivePanel::Tracks => ActivePanel::Albums,
-			ActivePanel::Queue => ActivePanel::Tracks,
-		}
-	}
-
-	fn move_right(&mut self) {
-		self.active_panel = match self.active_panel {
-			ActivePanel::Albums => ActivePanel::Tracks,
-			ActivePanel::Tracks => ActivePanel::Queue,
-			ActivePanel::Queue => ActivePanel::Queue,
-		}
-	}
-
-	fn move_down(&mut self) {
-		match self.active_panel {
-			ActivePanel::Albums => {
-				let i = match self.album_state.selected() {
-					Some(i) if i < self.albums.len() - 1 => i + 1,
-					Some(i) => i,
-					None => 0,
-				};
-				self.album_state.select(Some(i));
-			}
-			ActivePanel::Tracks => {
-				let i = match self.track_state.selected() {
-					Some(i) if i < self.tracks.len() - 1 => i + 1,
-					Some(i) => i,
-					None => 0,
-				};
-				self.track_state.select(Some(i));
-			}
-			ActivePanel::Queue => {
-				let i = match self.queue_state.selected() {
-					Some(i) if i < self.queue.len().saturating_sub(1) => i + 1,
-					Some(i) => i,
-					None => 0,
-				};
-				self.queue_state.select(Some(i));
-			}
-		}
-	}
-
-	fn move_up(&mut self) {
-		match self.active_panel {
-			ActivePanel::Albums => {
-				let i = match self.album_state.selected() {
-					Some(i) if i > 0 => i - 1,
-					Some(i) => i,
-					None => 0,
-				};
-				self.album_state.select(Some(i));
-			}
-			ActivePanel::Tracks => {
-				let i = match self.track_state.selected() {
-					Some(i) if i > 0 => i - 1,
-					Some(i) => i,
-					None => 0,
-				};
-				self.track_state.select(Some(i));
-			}
-			ActivePanel::Queue => {
-				let i = match self.queue_state.selected() {
-					Some(i) if i > 0 => i - 1,
-					Some(i) => i,
-					None => 0,
-				};
-				self.queue_state.select(Some(i));
-			}
-		}
-	}
-
-	fn main_action(&mut self) {
-		match self.active_panel {
-			ActivePanel::Albums => {
-				if let Some(i) = self.album_state.selected() {
-					let mut tracks = self.albums[i].tracks.clone();
-					self.queue.extend(tracks.drain(..));
-					self.queue_state
-						.select(Some(self.queue.len().saturating_sub(1)));
-				}
-				if let Some(first_track) = self.queue.first() {
-					self.player.load_track(first_track.clone());
-				}
-				if self.player.current_track().is_none() {
-					if let Some(first_track) = self.queue.first() {
-						self.player.load_track(first_track.clone());
-					}
-				}
-			}
-			ActivePanel::Tracks => {
-				if let Some(i) = self.track_state.selected() {
-					self.queue.push(self.tracks[i].clone());
-					self.queue_state
-						.select(Some(self.queue.len().saturating_sub(1)));
-				}
-				if let Some(first_track) = self.queue.first() {
-					self.player.load_track(first_track.clone());
-				}
-				if self.player.current_track().is_none() {
-					if let Some(first_track) = self.queue.first() {
-						self.player.load_track(first_track.clone());
-					}
-				}
-			}
-			ActivePanel::Queue => {
-				if let Some(i) = self.queue_state.selected() {
-					self.queue.remove(i);
-					if self.queue.is_empty() {
-						self.queue_state.select(None);
-					} else if i >= self.queue.len() {
-						self.queue_state.select(Some(self.queue.len() - 1));
-					}
-				}
-			}
-		}
-	}
-
-	fn aux_main_action(&mut self) {
-		match self.active_panel {
-			ActivePanel::Albums => {
-				if let Some(i) = self.album_state.selected() {
-					let mut tracks = self.albums[i].tracks.clone();
-					while let Some(t) = tracks.pop() {
-						self.queue.insert(0, t);
-					}
-					self.queue_state.select(Some(0));
-				}
-			}
-			ActivePanel::Tracks => {
-				if let Some(i) = self.track_state.selected() {
-					let t = self.tracks[i].clone();
-					self.queue.insert(0, t);
-					self.queue_state.select(Some(0));
-				}
-			}
-			ActivePanel::Queue => {
-				if let Some(i) = self.queue_state.selected() {
-					if i < self.queue.len() {
-						let t = self.queue.remove(i);
-						self.queue.insert(0, t);
-						self.queue_state.select(Some(0));
-					}
-				}
-			}
-		}
-	}
-
-	fn clear_queue(&mut self) {
-		self.queue.clear();
-		self.queue_state.select(None);
-	}
-
-	fn load_next_track_automatically(&mut self) {
-		if self.player.sink.empty() {
-			if !self.queue.is_empty() {
-				let next_track = self.queue.remove(0);
-				self.player.load_track(next_track);
-				self.queue_state.select(Some(0));
-			}
-		}
-	}
-
-	pub fn update_player_timeline(&self, player_chunk: Rect) -> String {
-		if let Some(track) = &self.player.current_track {
-			let elapsed = self.player.position().as_secs() as usize;
-			let total = track.length as usize;
-			let width = player_chunk.width as usize;
-			let progress = if total > 0 {
-				(elapsed * width) / total
-			} else {
-				0
-			};
-			let bar = format!(
-				"{}{}",
-				"█".repeat(progress),
-				"░".repeat(width.saturating_sub(progress))
-			);
-			return bar;
-		}
-		String::new()
-	}
-
-	pub fn current_track_time(&self) -> String {
-		if let Some(track) = &self.player.current_track {
-			let elapsed = self.player.position().as_secs();
-			let total = &track.length;
-			format!(
-				"{:02}:{:02} / {:02}:{:02}",
-				elapsed / 60,
-				elapsed % 60,
-				total / 60,
-				total % 60
-			)
-		} else {
-			"00:00 / 00:00".to_string()
-		}
-	}
 }

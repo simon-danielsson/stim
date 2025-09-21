@@ -32,9 +32,8 @@ impl Player {
 		}
 	}
 
-	/// Load a track into the player and start playback
 	pub fn load_track(&mut self, track: Track) {
-		self.sink.stop(); // stop any previous track
+		self.sink.stop(); // stop previous track
 		let mixer = self._stream.mixer();
 		self.sink = Sink::connect_new(mixer);
 
@@ -49,7 +48,7 @@ impl Player {
 		self.sink.play();
 	}
 
-	/// Toggle play/pause
+	/// play/pause
 	pub fn toggle_play(&mut self) {
 		if self.sink.is_paused() {
 			self.sink.play();
@@ -62,7 +61,6 @@ impl Player {
 		}
 	}
 
-	/// Set the volume (0.0–2.0)
 	pub fn get_volume(&mut self) -> f32 {
 		self.volume
 	}
@@ -71,12 +69,10 @@ impl Player {
 		self.sink.set_volume(self.volume);
 	}
 
-	/// Get the currently loaded track
 	pub fn current_track(&self) -> Option<Track> {
 		self.current_track.clone()
 	}
 
-	/// Get the current playback position
 	pub fn position(&self) -> Duration {
 		if self.sink.is_paused() {
 			self.current_pos
@@ -88,7 +84,6 @@ impl Player {
 	}
 }
 
-/// Example run function interacting with a queue
 pub fn run(track: &Track, input: &str, previous_tracks: &mut Vec<Track>) -> Player {
 	let mut player = Player::new();
 
