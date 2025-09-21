@@ -6,11 +6,11 @@ use crossterm::{
 use ratatui::{
 	Terminal,
 	backend::CrosstermBackend,
-	layout::{Constraint, Direction, Layout},
+	layout::{Alignment, Constraint, Direction, Layout},
 	style::{Color, Modifier, Style},
-	text::{Line, Span, Text},
 	widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
 };
+use rodio::queue;
 use std::io;
 
 use crate::player::Player;
@@ -36,52 +36,33 @@ fn main() -> std::io::Result<()> {
 	loop {
 		terminal.draw(|f| {
 			let size = f.area();
-
 			let vertical_chunks = Layout::default()
 				.direction(Direction::Vertical)
 				.constraints([
-					Constraint::Max(1),    // info bar
 					Constraint::Fill(1),   // main
 					Constraint::Length(3), // player
 				])
 				.split(size);
-
 			let horizontal_chunks = Layout::default()
 				.direction(Direction::Horizontal)
 				.constraints([
-					Constraint::Percentage(50), // albums
-					Constraint::Percentage(25), // tracks
-					Constraint::Percentage(25), // queue
+					Constraint::Percentage(40), // albums
+					Constraint::Percentage(40), // tracks
+					Constraint::Fill(1),        // queue
 				])
-				.split(vertical_chunks[1]);
-
-			let infobar_style = Style::default();
-			let player_style = Style::default();
-
-			let highlight_style =
-				Style::default().fg(Color::Red).add_modifier(Modifier::BOLD);
-
-			// info bar
-			let git_url = "https://github.com/simon-danielsson/stim";
-			let git_span = Span::styled(
-				format!("{}", git_url),
-				Style::default()
-					.fg(Color::Red)
-					.add_modifier(Modifier::UNDERLINED),
-			);
-
-			let app_title_left = format!("stim v{}", APP_VER);
-			let space = " "
-				.repeat(size.width as usize - app_title_left.len() - git_url.len());
-			let info_line =
-				Line::from(vec![app_title_left.into(), space.into(), git_span]);
-
-			let infobar = Paragraph::new(Text::from(vec![info_line.clone()]))
-				.style(infobar_style);
-
-			f.render_widget(infobar, vertical_chunks[0]);
+				.split(vertical_chunks[0]);
+			let queue_logo_chunk = Layout::default()
+				.direction(Direction::Vertical)
+				.constraints([Constraint::Fill(1), Constraint::Max(8)])
+				.split(horizontal_chunks[2]);
+			let highlight_style = Style::default()
+				.fg(Color::Black)
+				.add_modifier(Modifier::BOLD)
+				.bg(Color::Red);
 
 			// albums
+			let album_has_focus = matches!(app.active_panel, ActivePanel::Albums);
+
 			let album_items: Vec<ListItem> = app
 				.albums
 				.iter()
@@ -89,15 +70,26 @@ fn main() -> std::io::Result<()> {
 					ListItem::new(format!("{} - {}", album.artist, album.name))
 				})
 				.collect();
-
-			let albums = List::new(album_items)
-				.block(Block::default()
-					.title("󰀥 Albums")
-					.title_alignment(ratatui::layout::Alignment::Center)
-					.borders(Borders::ALL)
-					.border_type(BorderType::Rounded))
-				.highlight_style(highlight_style)
-				.highlight_symbol(">> ");
+			let albums = List::new(album_items.clone())
+				.block({
+					let mut block = Block::default()
+						.title("󰀥 Albums")
+						.title_alignment(ratatui::layout::Alignment::Center)
+						.borders(Borders::ALL)
+						.border_type(BorderType::Rounded);
+					if album_has_focus {
+						block = block.border_style(
+							Style::default().fg(Color::Red),
+						);
+					}
+					block
+				})
+				.highlight_style(if album_has_focus {
+					highlight_style
+				} else {
+					Style::default()
+				})
+				.highlight_symbol(if album_has_focus { "  " } else { "   " });
 
 			f.render_stateful_widget(
 				albums,
@@ -106,23 +98,37 @@ fn main() -> std::io::Result<()> {
 			);
 
 			// tracks
+			let tracks_has_focus = matches!(app.active_panel, ActivePanel::Tracks);
 			let track_items: Vec<ListItem> = app
 				.tracks
 				.iter()
-				.map(|t| {
-					ListItem::new(format!("{} - {}", t.track_num, t.track_name))
+				.map(|track| {
+					ListItem::new(format!(
+						"{} - {} [{}]",
+						track.artist, track.track_name, track.album
+					))
 				})
 				.collect();
-
-			let tracks = List::new(track_items)
-				.block(Block::default()
-					.title(" Tracks")
-					.title_alignment(ratatui::layout::Alignment::Center)
-					.borders(Borders::ALL)
-					.border_type(BorderType::Rounded))
-				.highlight_style(highlight_style)
-				.highlight_symbol(">> ");
-
+			let tracks = List::new(track_items.clone())
+				.block({
+					let mut block = Block::default()
+						.title(" Tracks")
+						.title_alignment(ratatui::layout::Alignment::Center)
+						.borders(Borders::ALL)
+						.border_type(BorderType::Rounded);
+					if tracks_has_focus {
+						block = block.border_style(
+							Style::default().fg(Color::Red),
+						);
+					}
+					block
+				})
+				.highlight_style(if tracks_has_focus {
+					highlight_style
+				} else {
+					Style::default()
+				})
+				.highlight_symbol(if tracks_has_focus { "  " } else { "   " });
 			f.render_stateful_widget(
 				tracks,
 				horizontal_chunks[1],
@@ -130,29 +136,69 @@ fn main() -> std::io::Result<()> {
 			);
 
 			// queue
-			let queue_items: Vec<ListItem> =
-				app.queue
-					.iter()
-					.map(|t| {
-						ListItem::new(format!(
-							"{} - {}",
-							t.artist, t.track_name
-						))
-					})
-					.collect();
+			let queue_has_focus = matches!(app.active_panel, ActivePanel::Queue);
+			let queue_items: Vec<ListItem> = app
+				.queue
+				.iter()
+				.map(|track| {
+					ListItem::new(format!(
+						"{}. {} - {} [{}]",
+						track.track_num,
+						track.artist,
+						track.track_name,
+						track.album
+					))
+				})
+				.collect();
+			let queue = List::new(queue_items.clone())
+				.block({
+					let mut block = Block::default()
+						.title("󰲹 Queue")
+						.title_alignment(ratatui::layout::Alignment::Center)
+						.borders(Borders::ALL)
+						.border_type(BorderType::Rounded);
+					if queue_has_focus {
+						block = block.border_style(
+							Style::default().fg(Color::Red),
+						);
+					}
+					block
+				})
+				.highlight_style(if queue_has_focus {
+					highlight_style
+				} else {
+					Style::default()
+				})
+				.highlight_symbol(if queue_has_focus { "  " } else { "   " });
+			f.render_stateful_widget(queue, queue_logo_chunk[0], &mut app.queue_state);
 
-			let queue = List::new(queue_items)
-				.block(Block::default()
-					.title("󰲹 Queue")
-					.title_alignment(ratatui::layout::Alignment::Center)
-					.borders(Borders::ALL)
-					.border_type(BorderType::Rounded))
-				.highlight_style(highlight_style)
-				.highlight_symbol(">> ");
-
-			f.render_stateful_widget(queue, horizontal_chunks[2], &mut app.queue_state);
+			// logo
+			let logo_text = format!(
+				"\n░█▀▀░▀█▀░▀█▀░█▄█\n░▀▀█░░█░░░█░░█░█\n░▀▀▀░░▀░░▀▀▀░▀░▀\nv{}\n{}\n{}\n",
+				APP_VER, "www.simondanielsson.se", "© 2025 stim — MIT License"
+			);
+			let centered_lines: String = logo_text
+				.lines()
+				.map(|line| {
+					let total_padding = (queue_logo_chunk[1].width as usize)
+						.saturating_sub(line.chars().count());
+					let left_padding = total_padding / 2;
+					let right_padding = total_padding - left_padding;
+					format!(
+						"{}{}{}\n",
+						" ".repeat(left_padding), // ░
+						line,
+						" ".repeat(right_padding)
+					)
+				})
+				.collect();
+			let logo = Paragraph::new(centered_lines)
+				.style(Style::default().fg(Color::Red))
+				.alignment(Alignment::Left);
+			f.render_widget(logo, queue_logo_chunk[1]);
 
 			// player
+			let player_style = Style::default();
 			let player_title = if let Some(track) = app.player.current_track() {
 				format!(
 					" {} - {} ({})",
@@ -161,7 +207,6 @@ fn main() -> std::io::Result<()> {
 			} else {
 				" No track".to_string()
 			};
-
 			let player = Paragraph::new(app.current_track_time())
 				.style(player_style)
 				.block(Block::default()
@@ -169,7 +214,7 @@ fn main() -> std::io::Result<()> {
 					.title_alignment(ratatui::layout::Alignment::Center)
 					.borders(Borders::ALL)
 					.border_type(BorderType::Rounded));
-			f.render_widget(player, vertical_chunks[2]);
+			f.render_widget(player, vertical_chunks[1]);
 		})?;
 
 		// event handling
