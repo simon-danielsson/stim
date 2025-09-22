@@ -322,6 +322,7 @@ fn main() -> std::io::Result<()> {
 			}
 		}
 	}
+	std::mem::drop(app);
 	disable_raw_mode()?;
 	execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 	Ok(())
