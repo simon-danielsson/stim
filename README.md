@@ -3,8 +3,8 @@
 </p>
   
 <p align="center">
-  <em>A TUI application built for listening to music without all<br>
-        of the bloat and superfluous features.</em>
+  <em>A TUI application built for listening to music without the bloat<br>
+        and superfluous features of modern streaming services.</em>
 </p>
   
 <p align="center">
@@ -17,12 +17,12 @@
   <img src="https://img.shields.io/badge/Rust-stable-orange?style=flat-square" alt="Rust" />
 </p>
   
-![screenshot](media/screenshots/1.png)
+![video](media/screenshots/video-v1.1.0.png)
 
 ---
 ## ✨ Features
 + 🔍 Find music quickly with the "find" feature.
-+ ⌨️ Keybindings that accommodate both Qwerty and Workman layouts.
++ ⌨️ Fast keyboard-based operation, using keybindings that accommodate both Qwerty and Workman layouts.
 + 🎨 Customizable accent color that persists across sessions.
 
 > [!IMPORTANT]  
