@@ -17,12 +17,16 @@
   <img src="https://img.shields.io/badge/Rust-stable-orange?style=flat-square" alt="Rust" />
 </p>
   
-<p align="center">
-  <img src="media/screenshots/video-v1.1.0.gif" alt="video">
-</p>
-<p align="center">
-  <img src="media/screenshots/1.png" alt="screenshot">
-</p>
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="media/screenshots/video-v1.1.0.gif" alt="video" height="250">
+    </td>
+    <td align="center">
+      <img src="media/screenshots/1.png" alt="screenshot" height="250">
+    </td>
+  </tr>
+</table>
 
 ---
 ## ✨ Features
