@@ -3,7 +3,7 @@ use ratatui::style::Color;
 
 // === general ===
 pub const APP_VER: &str = env!("CARGO_PKG_VERSION");
-pub const HIL_CLR: Color = Color::Green;
+pub const HIL_CLR: Color = Color::Red;
 pub const COPYRIGHT: &str = "© 2025 stim — MIT License";
 pub const WEBSITE: &str = "www.simondanielsson.se";
 

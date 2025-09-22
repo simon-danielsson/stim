@@ -17,12 +17,16 @@
   <img src="https://img.shields.io/badge/Rust-stable-orange?style=flat-square" alt="Rust" />
 </p>
   
+![screenshot](media/screenshots/1.png)
+
 ---
 ## ✨ Features
-- No features so far
++ Find music quickly using the "find" feature.
++ Keybindings accommodate for both Qwerty and Workman layouts.
++ 
 
 > [!IMPORTANT]  
-> stim only supports **Unix** systems  
+> stim only supports **Unix** systems (and has so far only been tested on MacOS)  
   
 ---
 ## 💻 Installation (MacOS)
@@ -37,11 +41,15 @@ curl -L https://github.com/simon-danielsson/stim/releases/latest/download/stim -
 chmod +x ~/.local/bin/stim
 ```
   
-**3. Listen to some music!**  
+**3. Launch stim for the first time to create "stim-library" in your ~ folder**  
 ``` bash
 stim
 ```
   
+**4. Add all your music to the "stim-library" directory (be sure that the music files contain the necessary metadata)**
+
+**5. Learn the controls and listen to some music!**
+
 ---
 ## 🚀 Controls
 **Playback**  
@@ -49,9 +57,6 @@ stim
 ```
 [ = Decrease volume.
 ] = Increase volume.
-
-( = Go backwards in current track by 15 seconds.
-) = Go forwards in current track by 30 seconds.
 
 { = Go to the previous track in the queue.
 } = Go to the next track in the queue.
@@ -80,11 +85,14 @@ If inside the "Queue" pane:
 [q] = Quit the program.
 
 [f] = Search the contents of all the panes at once. 
-      Execute with [Enter] or cancel with [Esc].
 
-[c] = Clear current search.
+[F] = Clear search.
 
+Not implemented yet:
 [s] = Toggle sorting of the "Albums" and "Tracks" panes to A-Z or Z-A.
+
+Not implemented yet:
+[c] = Rotate between different accent colors for the UI.
 
 You can navigate with both the Qwerty and Workman layouts, as well as with the arrow keys.
 [h], [n], [Left]  = Navigate left.
@@ -98,6 +106,7 @@ You can navigate with both the Qwerty and Workman layouts, as well as with the a
 + [crossterm](https://github.com/crossterm-rs/crossterm)  
 + [lofty](https://github.com/serial-ata/lofty-rs)  
 + [ratatui](https://github.com/ratatui/ratatui)  
++ [rodio](https://github.com/RustAudio/rodio)  
 + [walkdir](https://github.com/BurntSushi/walkdir)  
 
 ---

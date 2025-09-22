@@ -83,31 +83,3 @@ impl Player {
 		}
 	}
 }
-
-pub fn run(track: &Track, input: &str, previous_tracks: &mut Vec<Track>) -> Player {
-	let mut player = Player::new();
-
-	match input.trim() {
-		"p" => {
-			if let Some(_) = player.current_track() {
-				player.toggle_play();
-			} else {
-				player.load_track(track.clone());
-			}
-		}
-		"]" => player.set_volume(player.volume + 0.1),
-		"[" => player.set_volume(player.volume - 0.1),
-		"{" => {
-			if let Some(prev) = previous_tracks.last() {
-				player.load_track(prev.clone());
-			}
-		}
-		"}" => {
-			player.load_track(track.clone());
-			previous_tracks.push(track.clone());
-		}
-		_ => {}
-	}
-
-	player
-}

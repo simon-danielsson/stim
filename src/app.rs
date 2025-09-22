@@ -1,3 +1,5 @@
+use std::usize;
+
 use crate::load_album_and_track_lists;
 use crate::player;
 use crate::player::Player;
@@ -8,13 +10,14 @@ pub struct App {
 	pub active_panel: ActivePanel,
 	pub albums: Vec<load_album_and_track_lists::Album>,
 	pub tracks: Vec<load_album_and_track_lists::Track>,
-	pub all_albums: Vec<load_album_and_track_lists::Album>, // originals
-	pub all_tracks: Vec<load_album_and_track_lists::Track>, // originals
+	pub all_albums: Vec<load_album_and_track_lists::Album>,
+	pub all_tracks: Vec<load_album_and_track_lists::Track>,
 	pub queue: Vec<load_album_and_track_lists::Track>,
 
 	pub album_state: ListState,
 	pub track_state: ListState,
 	pub queue_state: ListState,
+	pub queue_index: Option<usize>,
 
 	pub player: player::Player,
 
@@ -61,6 +64,7 @@ impl App {
 			album_state,
 			track_state,
 			queue_state,
+			queue_index: Some(0),
 			player: Player::new(),
 			input: String::new(),
 			find_term: String::new(),
@@ -153,13 +157,8 @@ impl App {
 					self.queue_state
 						.select(Some(self.queue.len().saturating_sub(1)));
 				}
-				if let Some(first_track) = self.queue.first() {
-					self.player.load_track(first_track.clone());
-				}
 				if self.player.current_track().is_none() {
-					if let Some(first_track) = self.queue.first() {
-						self.player.load_track(first_track.clone());
-					}
+					self.start_play_at(0);
 				}
 			}
 			ActivePanel::Tracks => {
@@ -168,13 +167,8 @@ impl App {
 					self.queue_state
 						.select(Some(self.queue.len().saturating_sub(1)));
 				}
-				if let Some(first_track) = self.queue.first() {
-					self.player.load_track(first_track.clone());
-				}
 				if self.player.current_track().is_none() {
-					if let Some(first_track) = self.queue.first() {
-						self.player.load_track(first_track.clone());
-					}
+					self.start_play_at(0);
 				}
 			}
 			ActivePanel::Queue => {
@@ -223,9 +217,11 @@ impl App {
 	pub fn clear_queue(&mut self) {
 		self.queue.clear();
 		self.queue_state.select(None);
+		self.queue_index = None;
 	}
 
 	// find
+
 	pub fn move_cursor_left(&mut self) {
 		let cursor_moved_left = self.find_char_index.saturating_sub(1);
 		self.find_char_index = self.clamp_cursor(cursor_moved_left);
@@ -241,6 +237,7 @@ impl App {
 		self.input.insert(index, new_char);
 		self.move_cursor_right();
 	}
+
 	fn byte_index(&self) -> usize {
 		self.input
 			.char_indices()
@@ -248,24 +245,15 @@ impl App {
 			.nth(self.find_char_index)
 			.unwrap_or(self.input.len())
 	}
+
 	pub fn delete_char(&mut self) {
 		let is_not_cursor_leftmost = self.find_char_index != 0;
 		if is_not_cursor_leftmost {
-			// Method "remove" is not used on the saved text for deleting the selected char.
-			// Reason: Using remove on String works on bytes instead of the chars.
-			// Using remove would require special care because of char boundaries.
-
-			let current_index = self.find_char_index;
-			let from_left_to_current_index = current_index - 1;
-
-			// Getting all characters before the selected character.
+			let queue_index = self.find_char_index;
+			let from_left_to_queue_index = queue_index - 1;
 			let before_char_to_delete =
-				self.input.chars().take(from_left_to_current_index);
-			// Getting all characters after selected character.
-			let after_char_to_delete = self.input.chars().skip(current_index);
-
-			// Put all characters together except the selected one.
-			// By leaving the selected one out, it is forgotten and therefore deleted.
+				self.input.chars().take(from_left_to_queue_index);
+			let after_char_to_delete = self.input.chars().skip(queue_index);
 			self.input = before_char_to_delete.chain(after_char_to_delete).collect();
 			self.move_cursor_left();
 		}
@@ -286,6 +274,7 @@ impl App {
 		self.find_tracks();
 		self.reset_cursor();
 	}
+
 	pub fn find_albums(&mut self) {
 		if self.find_term.is_empty() {
 			self.albums = self.all_albums.clone();
@@ -321,26 +310,91 @@ impl App {
 		}
 		self.track_state.select(Some(0));
 	}
+
 	pub fn clear_find(&mut self) {
 		self.input.clear();
 		self.find_term.clear();
-
-		// restore full lists
 		self.albums = self.all_albums.clone();
 		self.tracks = self.all_tracks.clone();
-
-		// reset selections
 		self.album_state.select(Some(0));
 		self.track_state.select(Some(0));
 	}
 
 	// player
-	pub fn load_next_track_automatically(&mut self) {
+
+	fn start_play_at(&mut self, index: usize) {
+		if index >= self.queue.len() {
+			return;
+		}
+		self.queue_index = Some(index);
+		self.queue_state.select(Some(index));
+		let track = self.queue[index].clone();
+		self.player.load_track(track);
+	}
+
+	pub fn load_next_track_if_current_ends(&mut self) {
 		if self.player.sink.empty() {
-			if !self.queue.is_empty() {
-				let next_track = self.queue.remove(0);
-				self.player.load_track(next_track);
-				self.queue_state.select(Some(0));
+			if self.queue.is_empty() {
+				self.queue_index = None;
+				self.queue_state.select(None);
+				return;
+			}
+			match self.queue_index {
+				Some(i) if i + 1 < self.queue.len() => {
+					self.start_play_at(i + 1);
+				}
+				Some(_) => {
+					self.player.sink.pause();
+					self.queue_index = None;
+					self.queue_state.select(None);
+				}
+				None => {
+					// nothing playing but queue present -> start first
+					self.start_play_at(0);
+				}
+			}
+		}
+	}
+
+	pub fn next_track(&mut self) {
+		if self.queue.is_empty() {
+			self.player.sink.pause();
+			self.queue_index = None;
+			self.queue_state.select(None);
+			return;
+		}
+		match self.queue_index {
+			Some(i) if i + 1 < self.queue.len() => {
+				self.start_play_at(i + 1);
+			}
+			Some(_) => {
+				// at end of queue
+				self.player.sink.pause();
+				self.queue_index = None;
+				self.queue_state.select(None);
+			}
+			None => {
+				// nothing playing -> start first
+				self.start_play_at(0);
+			}
+		}
+	}
+
+	pub fn prev_track(&mut self) {
+		if self.queue.is_empty() {
+			return;
+		}
+		match self.queue_index {
+			Some(i) if i > 0 => {
+				self.start_play_at(i - 1);
+			}
+			Some(_) => {
+				// already at first track -> restart first track (or no-op)
+				self.start_play_at(0);
+			}
+			None => {
+				// not playing -> start first
+				self.start_play_at(0);
 			}
 		}
 	}

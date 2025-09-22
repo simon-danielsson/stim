@@ -154,17 +154,24 @@ fn main() -> std::io::Result<()> {
 			let queue_items: Vec<ListItem> = app
 				.queue
 				.iter()
-				.map(|track| {
-					ListItem::new(format!(
+				.enumerate()
+				.map(|(i, track)| {
+					let mut item = ListItem::new(format!(
 						"{}. {} - {} [{}]",
 						track.track_num,
 						track.artist,
 						track.track_name,
 						track.album
-					))
+					));
+					if Some(i) == app.queue_index {
+						item = item.style(Style::default()
+							.add_modifier(Modifier::BOLD)
+							.bg(Color::DarkGray));
+					}
+					item
 				})
 				.collect();
-			let queue = List::new(queue_items.clone())
+			let queue = List::new(queue_items)
 				.block({
 					let mut block = Block::default()
 						.title("󰲹 Queue")
@@ -248,6 +255,7 @@ fn main() -> std::io::Result<()> {
 					queue_logo_chunk[0].y + 1,
 				)),
 			}
+			app.load_next_track_if_current_ends();
 		})?;
 
 		// event handling
@@ -270,6 +278,9 @@ fn main() -> std::io::Result<()> {
 						}
 						K_CLEAR_FIND => app.clear_find(),
 						K_PLAY => app.player.toggle_play(),
+
+						K_N_TRK => app.next_track(),
+						K_P_TRK => app.prev_track(),
 
 						K_VOL_DOWN => {
 							app.player.set_volume(current_vol - 0.1)
@@ -302,8 +313,6 @@ fn main() -> std::io::Result<()> {
 					InputMode::Find => {}
 				}
 			}
-
-			app.load_next_track_automatically();
 		}
 	}
 	disable_raw_mode()?;
