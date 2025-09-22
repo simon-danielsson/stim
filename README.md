@@ -20,6 +20,9 @@
 <p align="center">
   <img src="media/screenshots/video-v1.1.0.gif" alt="video">
 </p>
+<p align="center">
+  <img src="media/screenshots/1.png" alt="screenshot">
+</p>
 
 ---
 ## ✨ Features
