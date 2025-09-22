@@ -270,8 +270,6 @@ impl App {
 	pub fn submit_find(&mut self) {
 		self.find_term = self.input.clone();
 		self.input_mode = InputMode::Normal;
-		self.find_albums();
-		self.find_tracks();
 		self.reset_cursor();
 	}
 

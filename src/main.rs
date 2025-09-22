@@ -299,13 +299,20 @@ fn main() -> std::io::Result<()> {
 						match key.code {
 							KeyCode::Enter => app.submit_find(),
 							KeyCode::Char(to_insert) => {
-								app.enter_char(to_insert)
+								app.enter_char(to_insert);
+								app.find_term = app.input.clone();
+								app.find_albums();
+								app.find_tracks();
 							}
-							KeyCode::Backspace => app.delete_char(),
+							KeyCode::Backspace => {
+								app.delete_char();
+								app.find_albums();
+								app.find_tracks();
+							}
 							KeyCode::Left => app.move_cursor_left(),
 							KeyCode::Right => app.move_cursor_right(),
 							KeyCode::Esc => {
-								app.input_mode = InputMode::Normal
+								app.input_mode = InputMode::Normal;
 							}
 							_ => {}
 						}
