@@ -94,10 +94,8 @@ If inside the "Queue" pane:
 
 [F] = Clear search.
 
-Not implemented yet:
 [s] = Toggle sorting of the "Albums" and "Tracks" panes to A-Z or Z-A.
 
-Not implemented yet:
 [S] = Shuffle the contents of the queue.
 
 [c] = Rotate between different accent colors for the UI.
