@@ -21,9 +21,9 @@
 
 ---
 ## ✨ Features
-+ Find music quickly using the "find" feature.
-+ Keybindings accommodate for both Qwerty and Workman layouts.
-+ 
++ Find music quickly with the "find" feature.
++ Keybindings that accommodate both Qwerty and Workman layouts.
++ Customizable accent color that persists across sessions.
 
 > [!IMPORTANT]  
 > stim only supports **Unix** systems (and has so far only been tested on MacOS)  
@@ -91,7 +91,6 @@ If inside the "Queue" pane:
 Not implemented yet:
 [s] = Toggle sorting of the "Albums" and "Tracks" panes to A-Z or Z-A.
 
-Not implemented yet:
 [c] = Rotate between different accent colors for the UI.
 
 You can navigate with both the Qwerty and Workman layouts, as well as with the arrow keys.
@@ -104,6 +103,9 @@ You can navigate with both the Qwerty and Workman layouts, as well as with the a
 ---
 ## 🛠️ Built With
 + [crossterm](https://github.com/crossterm-rs/crossterm)  
++ [serde](https://github.com/serde-rs/serde)  
++ [serde_json](https://github.com/serde-rs/json)  
++ [dirs](https://codeberg.org/dirs/dirs-rs)  
 + [lofty](https://github.com/serial-ata/lofty-rs)  
 + [ratatui](https://github.com/ratatui/ratatui)  
 + [rodio](https://github.com/RustAudio/rodio)  

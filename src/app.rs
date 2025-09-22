@@ -1,10 +1,12 @@
-use std::usize;
-
 use crate::load_album_and_track_lists;
 use crate::player;
 use crate::player::Player;
-
+use ratatui::style::Color;
 use ratatui::{layout::Rect, widgets::ListState};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+use std::usize;
 
 pub struct App {
 	pub active_panel: ActivePanel,
@@ -25,6 +27,8 @@ pub struct App {
 	pub input_mode: InputMode,
 	pub find_term: String,
 	pub find_char_index: usize,
+
+	pub highlight_color: Color,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -40,10 +44,73 @@ pub enum InputMode {
 	Find,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct AppConfig {
+	highlight_color: u8,
+}
+impl AppConfig {
+	pub fn get_color(&self) -> Color {
+		match self.highlight_color {
+			0 => Color::Red,
+			1 => Color::LightRed,
+			2 => Color::Blue,
+			3 => Color::LightBlue,
+			4 => Color::Cyan,
+			5 => Color::LightCyan,
+			6 => Color::Magenta,
+			7 => Color::LightMagenta,
+			8 => Color::Yellow,
+			9 => Color::Green,
+			10 => Color::LightGreen,
+			_ => Color::Blue,
+		}
+	}
+
+	pub fn set_color(&mut self, color: Color) {
+		self.highlight_color = match color {
+			Color::Red => 0,
+			Color::LightRed => 1,
+			Color::Blue => 2,
+			Color::LightBlue => 3,
+			Color::Cyan => 4,
+			Color::LightCyan => 5,
+			Color::Magenta => 6,
+			Color::LightMagenta => 7,
+			Color::Yellow => 8,
+			Color::Green => 9,
+			Color::LightGreen => 10,
+			_ => 2, // default to Blue
+		}
+	}
+	pub fn load(path: &PathBuf) -> Self {
+		if let Ok(contents) = fs::read_to_string(path) {
+			serde_json::from_str(&contents).unwrap_or_default()
+		} else {
+			Self::default()
+		}
+	}
+
+	/// Save AppConfig to file
+	pub fn save(&self, path: &PathBuf) {
+		if let Ok(json) = serde_json::to_string_pretty(self) {
+			let _ = fs::write(path, json);
+		}
+	}
+}
+
+impl Default for AppConfig {
+	fn default() -> Self {
+		Self {
+			highlight_color: 0, // default to Blue
+		}
+	}
+}
+
 impl App {
 	pub fn new(
 		albums: Vec<load_album_and_track_lists::Album>,
 		tracks: Vec<load_album_and_track_lists::Track>,
+		highlight_color: Color,
 	) -> Self {
 		let mut album_state = ListState::default();
 		album_state.select(Some(0));
@@ -70,7 +137,26 @@ impl App {
 			find_term: String::new(),
 			input_mode: InputMode::Normal,
 			find_char_index: 0,
+			highlight_color,
 		}
+	}
+
+	// highlight color
+	pub fn rotate_hl_color(&mut self) {
+		self.highlight_color = match self.highlight_color {
+			Color::Red => Color::LightRed,
+			Color::LightRed => Color::Blue,
+			Color::Blue => Color::LightBlue,
+			Color::LightBlue => Color::Cyan,
+			Color::Cyan => Color::LightCyan,
+			Color::LightCyan => Color::Magenta,
+			Color::Magenta => Color::LightMagenta,
+			Color::LightMagenta => Color::Yellow,
+			Color::Yellow => Color::Green,
+			Color::Green => Color::LightGreen,
+			Color::LightGreen => Color::Red,
+			_ => Color::Red,
+		};
 	}
 
 	// navigation

@@ -3,7 +3,6 @@ use ratatui::style::Color;
 
 // === general ===
 pub const APP_VER: &str = env!("CARGO_PKG_VERSION");
-pub const HIL_CLR: Color = Color::Red;
 pub const COPYRIGHT: &str = "© 2025 stim — MIT License";
 pub const WEBSITE: &str = "www.simondanielsson.se";
 
@@ -29,3 +28,4 @@ pub const K_UP: &[KeyCode] = &[KeyCode::Up, KeyCode::Char('o'), KeyCode::Char('k
 pub const K_CLEAR: KeyCode = KeyCode::Esc; // clear queue
 pub const K_MAIN: KeyCode = KeyCode::Char('a'); // main action
 pub const K_AUX: KeyCode = KeyCode::Char('A'); // aux action
+pub const K_HL: KeyCode = KeyCode::Char('c'); // rotate highlight color

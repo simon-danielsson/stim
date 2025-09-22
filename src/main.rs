@@ -20,20 +20,28 @@ use crate::app::*;
 use crate::constants::*;
 
 fn main() -> std::io::Result<()> {
-	let (track_list, album_list) = load_album_and_track_lists::run();
-
 	enable_raw_mode()?;
 	let mut stdout = std::io::stdout();
 	execute!(stdout, EnterAlternateScreen)?;
 	let backend = CrosstermBackend::new(stdout);
 	let mut terminal = Terminal::new(backend)?;
 
+	let (track_list, album_list) = load_album_and_track_lists::run();
+
+	let mut config_path = dirs::config_dir().unwrap_or_else(|| ".".into());
+	config_path.push("my_app");
+	std::fs::create_dir_all(&config_path).ok();
+	config_path.push("app_config.json");
+
+	let app_config = AppConfig::load(&config_path);
+
 	// init app state
-	let mut app = App::new(album_list, track_list);
+	let mut app = App::new(album_list, track_list, app_config.get_color());
 
 	// app
 	loop {
 		terminal.draw(|f| {
+			let hl_color = app.highlight_color;
 			let size = f.area();
 			let vertical_chunks = Layout::vertical([
 				Constraint::Fill(1),   // main
@@ -61,7 +69,7 @@ fn main() -> std::io::Result<()> {
 			let highlight_style = Style::default()
 				.fg(Color::Black)
 				.add_modifier(Modifier::BOLD)
-				.bg(HIL_CLR);
+				.bg(hl_color);
 
 			// albums
 			let album_has_focus = matches!(app.active_panel, ActivePanel::Albums);
@@ -81,8 +89,9 @@ fn main() -> std::io::Result<()> {
 						.borders(Borders::ALL)
 						.border_type(BorderType::Rounded);
 					if album_has_focus {
-						block = block
-							.border_style(Style::default().fg(HIL_CLR));
+						block = block.border_style(
+							Style::default().fg(hl_color),
+						);
 					}
 					block
 				})
@@ -119,8 +128,9 @@ fn main() -> std::io::Result<()> {
 						.borders(Borders::ALL)
 						.border_type(BorderType::Rounded);
 					if tracks_has_focus {
-						block = block
-							.border_style(Style::default().fg(HIL_CLR));
+						block = block.border_style(
+							Style::default().fg(hl_color),
+						);
 					}
 					block
 				})
@@ -140,7 +150,7 @@ fn main() -> std::io::Result<()> {
 			let find = Paragraph::new(app.input.as_str())
 				.style(match app.input_mode {
 					InputMode::Normal => Style::default(),
-					InputMode::Find => Style::default().fg(HIL_CLR),
+					InputMode::Find => Style::default().fg(hl_color),
 				})
 				.block(Block::default()
 					.title(" Find")
@@ -179,8 +189,9 @@ fn main() -> std::io::Result<()> {
 						.borders(Borders::ALL)
 						.border_type(BorderType::Rounded);
 					if queue_has_focus {
-						block = block
-							.border_style(Style::default().fg(HIL_CLR));
+						block = block.border_style(
+							Style::default().fg(hl_color),
+						);
 					}
 					block
 				})
@@ -213,7 +224,7 @@ fn main() -> std::io::Result<()> {
 				})
 				.collect();
 			let logo = Paragraph::new(centered_lines)
-				.style(Style::default().fg(HIL_CLR))
+				.style(Style::default().fg(hl_color))
 				.alignment(Alignment::Left);
 			f.render_widget(logo, queue_logo_chunk[2]);
 
@@ -292,6 +303,7 @@ fn main() -> std::io::Result<()> {
 						K_CLEAR => app.clear_queue(),
 						K_MAIN => app.main_action(),
 						K_AUX => app.aux_main_action(),
+						K_HL => app.rotate_hl_color(),
 						_ => {}
 					},
 
@@ -322,6 +334,10 @@ fn main() -> std::io::Result<()> {
 			}
 		}
 	}
+	let mut config = AppConfig::default();
+	config.set_color(app.highlight_color);
+	config.save(&config_path);
+
 	std::mem::drop(app);
 	disable_raw_mode()?;
 	execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
