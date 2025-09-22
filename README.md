@@ -21,9 +21,9 @@
 
 ---
 ## ✨ Features
-+ Find music quickly with the "find" feature.
-+ Keybindings that accommodate both Qwerty and Workman layouts.
-+ Customizable accent color that persists across sessions.
++ 🔍 Find music quickly with the "find" feature.
++ ⌨️ Keybindings that accommodate both Qwerty and Workman layouts.
++ 🎨 Customizable accent color that persists across sessions.
 
 > [!IMPORTANT]  
 > stim only supports **Unix** systems (and has so far only been tested on MacOS)  
@@ -94,6 +94,9 @@ If inside the "Queue" pane:
 
 Not implemented yet:
 [s] = Toggle sorting of the "Albums" and "Tracks" panes to A-Z or Z-A.
+
+Not implemented yet:
+[S] = Shuffle the contents of the queue.
 
 [c] = Rotate between different accent colors for the UI.
 
