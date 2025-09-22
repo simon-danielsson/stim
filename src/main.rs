@@ -37,6 +37,7 @@ fn main() -> std::io::Result<()> {
 
 	// init app state
 	let mut app = App::new(album_list, track_list, app_config.get_color());
+	app.sort_lists();
 
 	// app
 	loop {
@@ -290,6 +291,8 @@ fn main() -> std::io::Result<()> {
 						K_CLEAR_FIND => app.clear_find(),
 						K_PLAY => app.player.toggle_play(),
 
+						K_SORT => app.toggle_sort(),
+
 						K_N_TRK => app.next_track(),
 						K_P_TRK => app.prev_track(),
 
@@ -299,11 +302,14 @@ fn main() -> std::io::Result<()> {
 						K_VOL_UP => {
 							app.player.set_volume(current_vol + 0.1)
 						}
+						K_HL => app.rotate_hl_color(),
 
+						// queue
 						K_CLEAR => app.clear_queue(),
+						K_SHUFFLE => app.shuffle_queue(),
+						K_ADD_ALL_TRACKS => app.add_all_tracks_to_queue(),
 						K_MAIN => app.main_action(),
 						K_AUX => app.aux_main_action(),
-						K_HL => app.rotate_hl_color(),
 						_ => {}
 					},
 

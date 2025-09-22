@@ -79,6 +79,8 @@ If inside the "Queue" pane:
 [a] = Remove selected track from the queue.
 [A] = Move selected track to the front of the queue.
 
+[t] = Add all tracks currently visible in the tracks panel to the queue at once.
+
 [Esc] = Clear the queue (note that the queue doubles as 
         the playback history, so clearing it will also clear your history).
 ```
@@ -117,6 +119,7 @@ You can navigate with both the Qwerty and Workman layouts, as well as with the a
 + [ratatui](https://github.com/ratatui/ratatui)  
 + [rodio](https://github.com/RustAudio/rodio)  
 + [walkdir](https://github.com/BurntSushi/walkdir)  
++ [rand](https://github.com/rust-random/rand)  
 
 ---
 ## 📜 License

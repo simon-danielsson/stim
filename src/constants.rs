@@ -12,6 +12,10 @@ pub const K_QUIT: KeyCode = KeyCode::Char('q'); // quit
 pub const K_FIND: KeyCode = KeyCode::Char('f'); // find
 pub const K_CLEAR_FIND: KeyCode = KeyCode::Char('F'); // find
 
+pub const K_SHUFFLE: KeyCode = KeyCode::Char('S'); // shuffle queue
+pub const K_SORT: KeyCode = KeyCode::Char('s'); // sort albums/tracks panel by A-Z or Z-A
+pub const K_ADD_ALL_TRACKS: KeyCode = KeyCode::Char('t'); // add all tracks currently visible in the tracks panel to the queue at once
+
 pub const K_PLAY: KeyCode = KeyCode::Char(' '); // play/pause
 
 pub const K_VOL_UP: KeyCode = KeyCode::Char(']'); // volume up

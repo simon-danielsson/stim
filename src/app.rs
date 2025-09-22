@@ -1,6 +1,8 @@
 use crate::load_album_and_track_lists;
 use crate::player;
 use crate::player::Player;
+use rand::rng;
+use rand::seq::SliceRandom; // provides shuffle
 use ratatui::style::Color;
 use ratatui::{layout::Rect, widgets::ListState};
 use serde::{Deserialize, Serialize};
@@ -21,6 +23,8 @@ pub struct App {
 	pub queue_state: ListState,
 	pub queue_index: Option<usize>,
 
+	pub sort_state: SortState,
+
 	pub player: player::Player,
 
 	pub input: String,
@@ -29,6 +33,11 @@ pub struct App {
 	pub find_char_index: usize,
 
 	pub highlight_color: Color,
+}
+
+pub enum SortState {
+	AZ,
+	ZA,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -131,6 +140,7 @@ impl App {
 			album_state,
 			track_state,
 			queue_state,
+			sort_state: SortState::AZ,
 			queue_index: Some(0),
 			player: Player::new(),
 			input: String::new(),
@@ -300,10 +310,71 @@ impl App {
 		}
 	}
 
+	// queue
+	pub fn add_all_tracks_to_queue(&mut self) {
+		for i in self.tracks.clone() {
+			self.queue.push(i)
+		}
+		self.queue_state
+			.select(Some(self.queue.len().saturating_sub(1)));
+		if self.player.current_track().is_none() {
+			self.start_play_at(0);
+		}
+	}
+
 	pub fn clear_queue(&mut self) {
 		self.queue.clear();
 		self.queue_state.select(None);
 		self.queue_index = None;
+	}
+	pub fn shuffle_queue(&mut self) {
+		let mut rng = rng();
+		self.queue.shuffle(&mut rng);
+
+		if !self.queue.is_empty() {
+			self.queue_state.select(Some(0));
+			self.queue_index = Some(0);
+		} else {
+			self.queue_state.select(None);
+			self.queue_index = None;
+		}
+	}
+
+	// sort
+
+	pub fn toggle_sort(&mut self) {
+		self.sort_state = match self.sort_state {
+			SortState::AZ => SortState::ZA,
+			SortState::ZA => SortState::AZ,
+		};
+		self.sort_lists();
+	}
+
+	pub fn sort_lists(&mut self) {
+		match self.sort_state {
+			SortState::AZ => {
+				self.albums.sort_by(|a, b| {
+					a.artist.to_lowercase().cmp(&b.artist.to_lowercase())
+				});
+				self.tracks.sort_by(|a, b| {
+					a.track_name
+						.to_lowercase()
+						.cmp(&b.track_name.to_lowercase())
+				});
+			}
+			SortState::ZA => {
+				self.albums.sort_by(|a, b| {
+					b.artist.to_lowercase().cmp(&a.artist.to_lowercase())
+				});
+				self.tracks.sort_by(|a, b| {
+					b.track_name
+						.to_lowercase()
+						.cmp(&a.track_name.to_lowercase())
+				});
+			}
+		}
+		self.album_state.select(Some(0));
+		self.track_state.select(Some(0));
 	}
 
 	// find
