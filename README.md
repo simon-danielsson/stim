@@ -17,7 +17,6 @@
   <img src="https://img.shields.io/badge/Rust-stable-orange?style=flat-square" alt="Rust" />
 </p>
   
-![video](media/screenshots/video-v1.1.0.gif)
 
 ---
 ## ✨ Features
