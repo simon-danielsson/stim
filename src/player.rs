@@ -27,7 +27,7 @@ impl Player {
 			current_track: None,
 			last_start_time: None,
 			current_pos: Duration::ZERO,
-			volume: 0.75,
+			volume: 2.0,
 		}
 	}
 
@@ -62,6 +62,10 @@ impl Player {
 
 	pub fn get_volume(&mut self) -> f32 {
 		self.volume
+	}
+	pub fn get_volume_as_percentage(&mut self) -> String {
+		let init_vol = self.volume * 50.0;
+		format!("{:.0}", init_vol)
 	}
 	pub fn set_volume(&mut self, vol: f32) {
 		self.volume = vol.clamp(0.0, 2.0);

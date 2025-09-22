@@ -67,6 +67,12 @@ fn main() -> std::io::Result<()> {
 				.constraints([Constraint::Max(1), Constraint::Max(1)])
 				.split(vertical_chunks[1]);
 
+			let player_timeline_chunk = Layout::horizontal([
+				Constraint::Fill(1), // player timeline
+				Constraint::Max(6),  // volume percentage
+			])
+			.split(player_chunk[1]);
+
 			let highlight_style = Style::default()
 				.fg(Color::Black)
 				.add_modifier(Modifier::BOLD)
@@ -256,8 +262,14 @@ fn main() -> std::io::Result<()> {
 			let player_timeline_str = app.update_player_timeline(player_chunk[1]);
 			let player_timeline =
 				Paragraph::new(player_timeline_str).style(player_style);
-			f.render_widget(player_timeline, player_chunk[1]);
+			f.render_widget(player_timeline, player_timeline_chunk[0]);
 
+			// volume percentage
+			let volume_style = Style::default();
+			let volume_percentage_ui =
+				format!("󰕾 {}%", app.player.get_volume_as_percentage());
+			let volume = Paragraph::new(volume_percentage_ui).style(volume_style);
+			f.render_widget(volume, player_timeline_chunk[1]);
 			// draw cursor in find field
 			match app.input_mode {
 				InputMode::Normal => {}
