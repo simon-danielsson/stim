@@ -16,7 +16,6 @@ pub struct Player {
 }
 
 impl Player {
-	/// Create a new player, initially empty (no track loaded)
 	pub fn new() -> Self {
 		let stream = OutputStreamBuilder::open_default_stream().unwrap();
 		let mixer = stream.mixer();

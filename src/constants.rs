@@ -1,5 +1,4 @@
 use crossterm::event::KeyCode;
-use ratatui::style::Color;
 
 // === general ===
 pub const APP_VER: &str = env!("CARGO_PKG_VERSION");
