@@ -31,6 +31,10 @@
 ---
 ## 💻 Installation (MacOS)
   
+**0. (Optional) Install a nerdfont**  
+This program relies on the 0xProto Nerd Font for its icons (although the program works just fine without the font of course).  
+[Install this font and set it as your terminal font](https://www.nerdfonts.com/font-downloads)  
+  
 **1. Download the latest release of stim**  
 ``` bash
 curl -L https://github.com/simon-danielsson/stim/releases/latest/download/stim -o ~/.local/bin/stim
@@ -41,7 +45,7 @@ curl -L https://github.com/simon-danielsson/stim/releases/latest/download/stim -
 chmod +x ~/.local/bin/stim
 ```
   
-**3. Launch stim for the first time to create "stim-library" in your ~ folder**  
+**3. Launch stim for the first time to create a "stim-library" directory in your home (~/) folder**  
 ``` bash
 stim
 ```
