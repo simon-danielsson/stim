@@ -4,7 +4,10 @@ use crate::player::Player;
 use rand::rng;
 use rand::seq::SliceRandom; // provides shuffle
 use ratatui::style::Color;
-use ratatui::{layout::Rect, widgets::ListState};
+use ratatui::{
+	layout::Rect,
+	widgets::{ListState, TableState},
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -18,8 +21,8 @@ pub struct App {
 	pub all_tracks: Vec<load_album_and_track_lists::Track>,
 	pub queue: Vec<load_album_and_track_lists::Track>,
 
-	pub album_state: ListState,
-	pub track_state: ListState,
+	pub album_state: TableState,
+	pub track_state: TableState,
 	pub queue_state: ListState,
 	pub queue_index: Option<usize>,
 
@@ -121,10 +124,10 @@ impl App {
 		tracks: Vec<load_album_and_track_lists::Track>,
 		highlight_color: Color,
 	) -> Self {
-		let mut album_state = ListState::default();
+		let mut album_state = TableState::default();
 		album_state.select(Some(0));
 
-		let mut track_state = ListState::default();
+		let mut track_state = TableState::default();
 		track_state.select(Some(0));
 
 		let mut queue_state = ListState::default();

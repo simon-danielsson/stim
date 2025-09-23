@@ -9,7 +9,7 @@ use ratatui::{
 	layout::{Alignment, Constraint, Layout, Position},
 	style::{Color, Modifier, Style},
 	text::Text,
-	widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
+	widgets::{Block, BorderType, Borders, Cell, List, ListItem, Paragraph, Row, Table},
 };
 
 pub mod app;
@@ -71,33 +71,42 @@ fn main() -> std::io::Result<()> {
 			// albums
 			let album_has_focus = matches!(app.active_panel, ActivePanel::Albums);
 
-			let album_items: Vec<ListItem> = app
+			let album_rows: Vec<Row> = app
 				.albums
 				.iter()
 				.map(|album| {
-					ListItem::new(format!("{} - {}", album.artist, album.name))
+					Row::new(vec![
+						Cell::from(album.artist.clone()),
+						Cell::from(album.name.clone()),
+					])
 				})
 				.collect();
-			let albums = List::new(album_items.clone())
-				.block({
-					let mut block = Block::default()
-						.title("󰀥 Albums")
-						.title_alignment(ratatui::layout::Alignment::Center)
-						.borders(Borders::ALL)
-						.border_type(BorderType::Rounded);
-					if album_has_focus {
-						block = block.border_style(
-							Style::default().fg(hl_color),
-						);
-					}
-					block
-				})
-				.highlight_style(if album_has_focus {
-					highlight_style
-				} else {
-					Style::default()
-				})
-				.highlight_symbol(if album_has_focus { "  " } else { "   " });
+
+			let albums = Table::new(
+				album_rows,
+				[
+					Constraint::Length(20),     // artist column fixed width
+					Constraint::Percentage(80), // album column takes remaining space
+				],
+			)
+			.block({
+				let mut block = Block::default()
+					.title("󰀥 Albums")
+					.title_alignment(Alignment::Center)
+					.borders(Borders::ALL)
+					.border_type(ratatui::widgets::BorderType::Rounded);
+				if album_has_focus {
+					block = block.border_style(Style::default().fg(hl_color));
+				}
+				block
+			})
+			.row_highlight_style(if album_has_focus {
+				highlight_style
+			} else {
+				Style::default()
+			})
+			.highlight_symbol(if album_has_focus { "  " } else { "   " })
+			.column_spacing(2);
 
 			f.render_stateful_widget(
 				albums,
@@ -107,36 +116,46 @@ fn main() -> std::io::Result<()> {
 
 			// tracks
 			let tracks_has_focus = matches!(app.active_panel, ActivePanel::Tracks);
-			let track_items: Vec<ListItem> = app
+
+			let tracks_rows: Vec<Row> = app
 				.tracks
 				.iter()
 				.map(|track| {
-					ListItem::new(format!(
-						"{} - {} [{}]",
-						track.artist, track.track_name, track.album
-					))
+					Row::new(vec![
+						Cell::from(track.artist.clone()),
+						Cell::from(track.track_name.clone()),
+						Cell::from(track.album.clone()),
+					])
 				})
 				.collect();
-			let tracks = List::new(track_items.clone())
-				.block({
-					let mut block = Block::default()
-						.title(" Tracks")
-						.title_alignment(ratatui::layout::Alignment::Center)
-						.borders(Borders::ALL)
-						.border_type(BorderType::Rounded);
-					if tracks_has_focus {
-						block = block.border_style(
-							Style::default().fg(hl_color),
-						);
-					}
-					block
-				})
-				.highlight_style(if tracks_has_focus {
-					highlight_style
-				} else {
-					Style::default()
-				})
-				.highlight_symbol(if tracks_has_focus { "  " } else { "   " });
+
+			let tracks = Table::new(
+				tracks_rows,
+				[
+					Constraint::Length(20),     // artist column
+					Constraint::Percentage(60), // track column
+					Constraint::Percentage(20), // album column
+				],
+			)
+			.block({
+				let mut block = Block::default()
+					.title(" Tracks")
+					.title_alignment(Alignment::Center)
+					.borders(Borders::ALL)
+					.border_type(ratatui::widgets::BorderType::Rounded);
+				if tracks_has_focus {
+					block = block.border_style(Style::default().fg(hl_color));
+				}
+				block
+			})
+			.row_highlight_style(if tracks_has_focus {
+				highlight_style
+			} else {
+				Style::default()
+			})
+			.highlight_symbol(if tracks_has_focus { "  " } else { "   " })
+			.column_spacing(2);
+
 			f.render_stateful_widget(
 				tracks,
 				horizontal_chunks[1],
