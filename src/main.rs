@@ -98,8 +98,8 @@ fn main() -> std::io::Result<()> {
 			let albums = Table::new(
 				album_rows,
 				[
-					Constraint::Length(20),     // artist column fixed width
-					Constraint::Percentage(80), // album column takes remaining space
+					Constraint::Length(26), // artist column fixed width
+					Constraint::Fill(1),    // album column takes remaining space
 				],
 			)
 			.block({
@@ -151,9 +151,9 @@ fn main() -> std::io::Result<()> {
 			let tracks = Table::new(
 				tracks_rows,
 				[
-					Constraint::Length(20),     // artist column
-					Constraint::Percentage(60), // track column
-					Constraint::Percentage(20), // album column
+					Constraint::Length(26), // artist column
+					Constraint::Length(26), // track column
+					Constraint::Fill(1),    // album column
 				],
 			)
 			.block({
