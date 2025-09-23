@@ -6,8 +6,9 @@ use crossterm::{
 use ratatui::{
 	Terminal,
 	backend::CrosstermBackend,
-	layout::{Alignment, Constraint, Direction, Layout, Position},
+	layout::{Alignment, Constraint, Layout, Position},
 	style::{Color, Modifier, Style},
+	text::Text,
 	widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
 };
 
@@ -45,8 +46,8 @@ fn main() -> std::io::Result<()> {
 			let hl_color = app.highlight_color;
 			let size = f.area();
 			let vertical_chunks = Layout::vertical([
+				Constraint::Length(4), // player
 				Constraint::Fill(1),   // main
-				Constraint::Length(2), // player
 			])
 			.split(size);
 			let horizontal_chunks = Layout::horizontal([
@@ -54,24 +55,13 @@ fn main() -> std::io::Result<()> {
 				Constraint::Percentage(40), // tracks
 				Constraint::Fill(1),        // queue
 			])
-			.split(vertical_chunks[0]);
+			.split(vertical_chunks[1]);
 			let queue_logo_chunk = Layout::vertical([
 				Constraint::Max(3),
 				Constraint::Fill(1),
 				Constraint::Max(8),
 			])
 			.split(horizontal_chunks[2]);
-
-			let player_chunk = Layout::default()
-				.direction(Direction::Vertical)
-				.constraints([Constraint::Max(1), Constraint::Max(1)])
-				.split(vertical_chunks[1]);
-
-			let player_timeline_chunk = Layout::horizontal([
-				Constraint::Fill(1), // player timeline
-				Constraint::Max(6),  // volume percentage
-			])
-			.split(player_chunk[1]);
 
 			let highlight_style = Style::default()
 				.fg(Color::Black)
@@ -236,40 +226,53 @@ fn main() -> std::io::Result<()> {
 			f.render_widget(logo, queue_logo_chunk[2]);
 
 			// player
-			let player_style = Style::default();
-			let currently_playing = if let Some(track) = app.player.current_track() {
-				format!(
-					"  {}. {} - {} [{}]",
-					track.track_num,
-					track.artist,
-					track.track_name,
-					track.album
-				)
-			} else {
-				" No track".to_string()
-			};
-			let player = Paragraph::new(format!(
-				"{} {}",
+			let player_timeline_str = app.update_player_timeline(vertical_chunks[0]);
+			let total_width = vertical_chunks[0].width as usize;
+			let right = format!("󰕾 {}%", app.player.get_volume_as_percentage());
+			let max_left = total_width.saturating_sub(right.chars().count() + 2);
+			let mut left_full = format!(
+				"{} │ {}",
 				app.current_track_time(),
-				currently_playing
-			))
-			.style(player_style)
-			.block(Block::default()
-				.title_alignment(ratatui::layout::Alignment::Left)
-				.borders(Borders::empty())
-				.border_type(BorderType::Rounded));
-			f.render_widget(player, player_chunk[0]);
-			let player_timeline_str = app.update_player_timeline(player_chunk[1]);
-			let player_timeline =
-				Paragraph::new(player_timeline_str).style(player_style);
-			f.render_widget(player_timeline, player_timeline_chunk[0]);
+				if let Some(track) = app.player.current_track() {
+					format!(
+						"{}. {} - {} [{}]",
+						track.track_num,
+						track.artist,
+						track.track_name,
+						track.album
+					)
+				} else {
+					"No track".to_string()
+				}
+			);
+			if left_full.chars().count() > max_left {
+				left_full = left_full
+					.chars()
+					.take(max_left.saturating_sub(1))
+					.collect();
+				left_full.push('…');
+			}
+			let used = left_full.chars().count() + right.chars().count();
+			let padding = if total_width > used {
+				total_width - used - 2
+			} else {
+				1
+			};
+			let player_ui_text = format!(
+				"{}{}{}  \n{}",
+				left_full,
+				" ".repeat(padding),
+				right,
+				player_timeline_str
+			);
+			let player_ui = Paragraph::new(Text::raw(player_ui_text))
+				.style(Style::default().fg(app.highlight_color))
+				.block(Block::default()
+					.borders(Borders::ALL)
+					.border_type(BorderType::Rounded)
+					.border_style(Style::default().fg(Color::White)));
+			f.render_widget(player_ui, vertical_chunks[0]);
 
-			// volume percentage
-			let volume_style = Style::default();
-			let volume_percentage_ui =
-				format!("󰕾 {}%", app.player.get_volume_as_percentage());
-			let volume = Paragraph::new(volume_percentage_ui).style(volume_style);
-			f.render_widget(volume, player_timeline_chunk[1]);
 			// draw cursor in find field
 			match app.input_mode {
 				InputMode::Normal => {}
