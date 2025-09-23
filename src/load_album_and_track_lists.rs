@@ -40,6 +40,7 @@ fn create_album_list(tracks_vec: Vec<Track>) -> std::io::Result<Vec<Album>> {
 			artist,
 			name: album_name,
 			tracks: sorted_tracks,
+			favorite: false,
 		});
 	}
 	Ok(album_list)
@@ -51,6 +52,7 @@ pub struct Album {
 	pub artist: String,
 	pub name: String,
 	pub tracks: Vec<Track>,
+	pub favorite: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +64,7 @@ pub struct Track {
 	pub path: String,
 	pub album: String,
 	pub length: u64,
+	pub favorite: bool,
 }
 
 impl Track {
@@ -80,6 +83,7 @@ impl Track {
 			path,
 			album,
 			length,
+			favorite: false,
 		}
 	}
 }

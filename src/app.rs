@@ -2,7 +2,7 @@ use crate::load_album_and_track_lists;
 use crate::player;
 use crate::player::Player;
 use rand::rng;
-use rand::seq::SliceRandom; // provides shuffle
+use rand::seq::SliceRandom;
 use ratatui::style::Color;
 use ratatui::{
 	layout::Rect,
@@ -21,6 +21,9 @@ pub struct App {
 	pub all_tracks: Vec<load_album_and_track_lists::Track>,
 	pub queue: Vec<load_album_and_track_lists::Track>,
 
+	pub config: AppConfig,
+	pub config_path: PathBuf,
+
 	pub album_state: TableState,
 	pub track_state: TableState,
 	pub queue_state: ListState,
@@ -38,6 +41,7 @@ pub struct App {
 	pub highlight_color: Color,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum SortState {
 	AZ,
 	ZA,
@@ -56,11 +60,53 @@ pub enum InputMode {
 	Find,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AppConfig {
 	highlight_color: u8,
+	favorite_albums: Vec<(String, String)>, // (artist, album_name)
+	favorite_tracks: Vec<(String, String)>, // (artist, track_name)
 }
 impl AppConfig {
+	// favorites
+	pub fn is_album_favorite(&self, artist: &str, album_name: &str) -> bool {
+		self.favorite_albums
+			.iter()
+			.any(|(a, n)| a == artist && n == album_name)
+	}
+
+	pub fn is_track_favorite(&self, artist: &str, track_name: &str) -> bool {
+		self.favorite_tracks
+			.iter()
+			.any(|(a, n)| a == artist && n == track_name)
+	}
+	pub fn add_album_favorite(&mut self, artist: String, album_name: String) {
+		if !self.is_album_favorite(&artist, &album_name) {
+			self.favorite_albums.push((artist, album_name));
+		}
+	}
+	pub fn clear_all_favorites(&mut self) {
+		self.favorite_albums.clear();
+		self.favorite_tracks.clear();
+	}
+
+	pub fn remove_album_favorite(&mut self, artist: &str, album_name: &str) {
+		self.favorite_albums
+			.retain(|(a, n)| !(a == artist && n == album_name));
+	}
+
+	pub fn add_track_favorite(&mut self, artist: String, track_name: String) {
+		if !self.is_track_favorite(&artist, &track_name) {
+			self.favorite_tracks.push((artist, track_name));
+		}
+	}
+
+	pub fn remove_track_favorite(&mut self, artist: &str, track_name: &str) {
+		self.favorite_tracks
+			.retain(|(a, n)| !(a == artist && n == track_name));
+	}
+
+	// colors
+
 	pub fn get_color(&self) -> Color {
 		match self.highlight_color {
 			0 => Color::Red,
@@ -74,7 +120,7 @@ impl AppConfig {
 			8 => Color::Yellow,
 			9 => Color::Green,
 			10 => Color::LightGreen,
-			_ => Color::Blue,
+			_ => Color::Red,
 		}
 	}
 
@@ -91,7 +137,7 @@ impl AppConfig {
 			Color::Yellow => 8,
 			Color::Green => 9,
 			Color::LightGreen => 10,
-			_ => 2, // default to Blue
+			_ => 0,
 		}
 	}
 	pub fn load(path: &PathBuf) -> Self {
@@ -113,7 +159,9 @@ impl AppConfig {
 impl Default for AppConfig {
 	fn default() -> Self {
 		Self {
-			highlight_color: 0, // default to Blue
+			highlight_color: 0,          // red
+			favorite_albums: Vec::new(), // (artist, album_name)
+			favorite_tracks: Vec::new(), // (artist, track_name)
 		}
 	}
 }
@@ -123,6 +171,8 @@ impl App {
 		albums: Vec<load_album_and_track_lists::Album>,
 		tracks: Vec<load_album_and_track_lists::Track>,
 		highlight_color: Color,
+		config: &AppConfig,
+		config_path: &PathBuf,
 	) -> Self {
 		let mut album_state = TableState::default();
 		album_state.select(Some(0));
@@ -138,6 +188,8 @@ impl App {
 			all_albums: albums.clone(),
 			all_tracks: tracks.clone(),
 			albums,
+			config: config.clone(),
+			config_path: config_path.clone(),
 			tracks,
 			queue: Vec::new(),
 			album_state,
@@ -314,6 +366,7 @@ impl App {
 	}
 
 	// queue
+
 	pub fn add_all_tracks_to_queue(&mut self) {
 		for i in self.tracks.clone() {
 			self.queue.push(i)
@@ -350,34 +403,54 @@ impl App {
 			SortState::AZ => SortState::ZA,
 			SortState::ZA => SortState::AZ,
 		};
-		self.sort_lists();
+		self.sort_lists_with_favorites();
 	}
 
 	pub fn sort_lists(&mut self) {
-		match self.sort_state {
-			SortState::AZ => {
-				self.albums.sort_by(|a, b| {
-					a.artist.to_lowercase().cmp(&b.artist.to_lowercase())
-				});
-				self.tracks.sort_by(|a, b| {
-					a.track_name
-						.to_lowercase()
-						.cmp(&b.track_name.to_lowercase())
-				});
+		self.sort_lists_with_favorites();
+	}
+
+	fn sort_lists_with_favorites(&mut self) {
+		let sort_state = self.sort_state;
+
+		let sort_albums = |a: &load_album_and_track_lists::Album,
+		                   b: &load_album_and_track_lists::Album| {
+			match (a.favorite, b.favorite) {
+				(true, false) => std::cmp::Ordering::Less,
+				(false, true) => std::cmp::Ordering::Greater,
+				_ => match sort_state {
+					SortState::AZ => {
+						a.artist.to_lowercase()
+							.cmp(&b.artist.to_lowercase())
+					}
+					SortState::ZA => {
+						b.artist.to_lowercase()
+							.cmp(&a.artist.to_lowercase())
+					}
+				},
 			}
-			SortState::ZA => {
-				self.albums.sort_by(|a, b| {
-					b.artist.to_lowercase().cmp(&a.artist.to_lowercase())
-				});
-				self.tracks.sort_by(|a, b| {
-					b.track_name
+		};
+
+		let sort_tracks = |a: &load_album_and_track_lists::Track,
+		                   b: &load_album_and_track_lists::Track| {
+			match (a.favorite, b.favorite) {
+				(true, false) => std::cmp::Ordering::Less,
+				(false, true) => std::cmp::Ordering::Greater,
+				_ => match sort_state {
+					SortState::AZ => a
+						.track_name
 						.to_lowercase()
-						.cmp(&a.track_name.to_lowercase())
-				});
+						.cmp(&b.track_name.to_lowercase()),
+					SortState::ZA => b
+						.track_name
+						.to_lowercase()
+						.cmp(&a.track_name.to_lowercase()),
+				},
 			}
-		}
-		self.album_state.select(Some(0));
-		self.track_state.select(Some(0));
+		};
+
+		self.albums.sort_by(sort_albums);
+		self.tracks.sort_by(sort_tracks);
 	}
 
 	// find
@@ -448,9 +521,22 @@ impl App {
 				.cloned()
 				.collect();
 		}
+		let sort_state = self.sort_state;
+		self.albums.sort_by(|a, b| match (a.favorite, b.favorite) {
+			(true, false) => std::cmp::Ordering::Less,
+			(false, true) => std::cmp::Ordering::Greater,
+			_ => match sort_state {
+				SortState::AZ => {
+					a.artist.to_lowercase().cmp(&b.artist.to_lowercase())
+				}
+				SortState::ZA => {
+					b.artist.to_lowercase().cmp(&a.artist.to_lowercase())
+				}
+			},
+		});
+
 		self.album_state.select(Some(0));
 	}
-
 	pub fn find_tracks(&mut self) {
 		if self.find_term.is_empty() {
 			self.tracks = self.all_tracks.clone();
@@ -466,16 +552,205 @@ impl App {
 				.cloned()
 				.collect();
 		}
+
+		let sort_state = self.sort_state;
+
+		self.tracks.sort_by(|a, b| match (a.favorite, b.favorite) {
+			(true, false) => std::cmp::Ordering::Less,
+			(false, true) => std::cmp::Ordering::Greater,
+			_ => match sort_state {
+				SortState::AZ => a
+					.track_name
+					.to_lowercase()
+					.cmp(&b.track_name.to_lowercase()),
+				SortState::ZA => b
+					.track_name
+					.to_lowercase()
+					.cmp(&a.track_name.to_lowercase()),
+			},
+		});
+
 		self.track_state.select(Some(0));
 	}
 
 	pub fn clear_find(&mut self) {
 		self.input.clear();
 		self.find_term.clear();
-		self.albums = self.all_albums.clone();
-		self.tracks = self.all_tracks.clone();
+
+		let mut albums = self.all_albums.clone();
+		let mut tracks = self.all_tracks.clone();
+
+		for (artist, album_name) in &self.config.favorite_albums {
+			if let Some(album) = albums
+				.iter_mut()
+				.find(|a| &a.artist == artist && &a.name == album_name)
+			{
+				album.favorite = true;
+			}
+		}
+		for (artist, track_name) in &self.config.favorite_tracks {
+			if let Some(track) = tracks
+				.iter_mut()
+				.find(|t| &t.artist == artist && &t.track_name == track_name)
+			{
+				track.favorite = true;
+			}
+		}
+
+		let sort_state = self.sort_state;
+		albums.sort_by(|a, b| match (a.favorite, b.favorite) {
+			(true, false) => std::cmp::Ordering::Less,
+			(false, true) => std::cmp::Ordering::Greater,
+			_ => match sort_state {
+				SortState::AZ => {
+					a.artist.to_lowercase().cmp(&b.artist.to_lowercase())
+				}
+				SortState::ZA => {
+					b.artist.to_lowercase().cmp(&a.artist.to_lowercase())
+				}
+			},
+		});
+		tracks.sort_by(|a, b| match (a.favorite, b.favorite) {
+			(true, false) => std::cmp::Ordering::Less,
+			(false, true) => std::cmp::Ordering::Greater,
+			_ => match sort_state {
+				SortState::AZ => a
+					.track_name
+					.to_lowercase()
+					.cmp(&b.track_name.to_lowercase()),
+				SortState::ZA => b
+					.track_name
+					.to_lowercase()
+					.cmp(&a.track_name.to_lowercase()),
+			},
+		});
+
+		self.albums = albums;
+		self.tracks = tracks;
+
 		self.album_state.select(Some(0));
 		self.track_state.select(Some(0));
+	}
+
+	// favorite
+	pub fn apply_favorites(&mut self, config: &AppConfig) {
+		// Apply favorite albums
+		for (artist, album_name) in &config.favorite_albums {
+			if let Some(album) = self
+				.albums
+				.iter_mut()
+				.find(|a| &a.artist == artist && &a.name == album_name)
+			{
+				album.favorite = true;
+			}
+			if let Some(album) = self
+				.all_albums
+				.iter_mut()
+				.find(|a| &a.artist == artist && &a.name == album_name)
+			{
+				album.favorite = true;
+			}
+		}
+
+		for (artist, track_name) in &config.favorite_tracks {
+			if let Some(track) = self
+				.tracks
+				.iter_mut()
+				.find(|t| &t.artist == artist && &t.track_name == track_name)
+			{
+				track.favorite = true;
+			}
+			if let Some(track) = self
+				.all_tracks
+				.iter_mut()
+				.find(|t| &t.artist == artist && &t.track_name == track_name)
+			{
+				track.favorite = true;
+			}
+		}
+		self.sort_lists_with_favorites();
+	}
+
+	pub fn clear_all_favorites_in_app(&mut self) {
+		self.config.clear_all_favorites();
+		for album in self.albums.iter_mut() {
+			album.favorite = false;
+		}
+		for album in self.all_albums.iter_mut() {
+			album.favorite = false;
+		}
+		for track in self.tracks.iter_mut() {
+			track.favorite = false;
+		}
+		for track in self.all_tracks.iter_mut() {
+			track.favorite = false;
+		}
+		self.sort_lists_with_favorites();
+		self.config.save(&self.config_path);
+	}
+
+	pub fn toggle_favorite(&mut self) {
+		match self.active_panel {
+			ActivePanel::Albums => {
+				if let Some(i) = self.album_state.selected() {
+					let album = &mut self.albums[i];
+					album.favorite = !album.favorite;
+
+					// update AppConfig
+					if album.favorite {
+						self.config.add_album_favorite(
+							album.artist.clone(),
+							album.name.clone(),
+						);
+					} else {
+						self.config.remove_album_favorite(
+							&album.artist,
+							&album.name,
+						);
+					}
+
+					if let Some(a) = self.all_albums.iter_mut().find(|a| {
+						a.artist == album.artist && a.name == album.name
+					}) {
+						a.favorite = album.favorite;
+					}
+
+					self.sort_lists_with_favorites();
+					self.config.save(&self.config_path); // persist immediately
+				}
+			}
+			ActivePanel::Tracks => {
+				if let Some(i) = self.track_state.selected() {
+					let track = &mut self.tracks[i];
+					track.favorite = !track.favorite;
+
+					// update AppConfig
+					if track.favorite {
+						self.config.add_track_favorite(
+							track.artist.clone(),
+							track.track_name.clone(),
+						);
+					} else {
+						self.config.remove_track_favorite(
+							&track.artist,
+							&track.track_name,
+						);
+					}
+
+					// keep all_tracks in sync
+					if let Some(t) = self.all_tracks.iter_mut().find(|t| {
+						t.artist == track.artist
+							&& t.track_name == track.track_name
+					}) {
+						t.favorite = track.favorite;
+					}
+
+					self.sort_lists_with_favorites();
+					self.config.save(&self.config_path); // persist immediately
+				}
+			}
+			ActivePanel::Queue => {}
+		}
 	}
 
 	// player

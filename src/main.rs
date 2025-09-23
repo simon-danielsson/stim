@@ -37,8 +37,15 @@ fn main() -> std::io::Result<()> {
 	let app_config = AppConfig::load(&config_path);
 
 	// init app state
-	let mut app = App::new(album_list, track_list, app_config.get_color());
+	let mut app = App::new(
+		album_list,
+		track_list,
+		app_config.get_color(),
+		&app_config,
+		&config_path,
+	);
 	app.sort_lists();
+	app.apply_favorites(&app_config);
 
 	// app
 	loop {
@@ -75,8 +82,14 @@ fn main() -> std::io::Result<()> {
 				.albums
 				.iter()
 				.map(|album| {
+					let fav_marker =
+						if album.favorite { " │ " } else { "" };
 					Row::new(vec![
-						Cell::from(album.artist.clone()),
+						Cell::from(format!(
+							"{}{}",
+							fav_marker,
+							album.artist.clone()
+						)),
 						Cell::from(album.name.clone()),
 					])
 				})
@@ -121,8 +134,14 @@ fn main() -> std::io::Result<()> {
 				.tracks
 				.iter()
 				.map(|track| {
+					let fav_marker =
+						if track.favorite { " │ " } else { "" };
 					Row::new(vec![
-						Cell::from(track.artist.clone()),
+						Cell::from(format!(
+							"{}{}",
+							fav_marker,
+							track.artist.clone()
+						)),
 						Cell::from(track.track_name.clone()),
 						Cell::from(track.album.clone()),
 					])
@@ -323,6 +342,11 @@ fn main() -> std::io::Result<()> {
 							app.input_mode = InputMode::Find;
 						}
 						K_CLEAR_FIND => app.clear_find(),
+						K_FAVORITE => {
+							app.toggle_favorite();
+							app.config.save(&config_path);
+						}
+						K_CLEAR_FAV => app.clear_all_favorites_in_app(),
 						K_PLAY => app.player.toggle_play(),
 
 						K_SORT => app.toggle_sort(),
@@ -374,9 +398,8 @@ fn main() -> std::io::Result<()> {
 			}
 		}
 	}
-	let mut config = AppConfig::default();
-	config.set_color(app.highlight_color);
-	config.save(&config_path);
+	app.config.set_color(app.highlight_color);
+	app.config.save(&config_path);
 
 	std::mem::drop(app);
 	disable_raw_mode()?;

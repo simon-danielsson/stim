@@ -102,6 +102,9 @@ If inside the "Queue" pane:
 
 [c] = Rotate between different accent colors for the UI.
 
+[x] = Favorite album or track.
+[X] = Remove all favorites.
+
 You can navigate with both the Qwerty and Workman layouts, as well as with the arrow keys.
 [h], [n], [Left]  = Navigate left.
 [j], [e], [Down]  = Navigate down.
